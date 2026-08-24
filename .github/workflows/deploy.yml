@@ -90,7 +90,36 @@ jobs:
       # DeployOnBuild causes a known MSB4006 circular-dependency error in
       # the Sdk.Publish targets; Build + DeployOnBuild is the correct,
       # working combination (same one Visual Studio's own Publish uses).
+      # Cheap, fast sanity check before we commit to the (potentially
+      # long-hanging) MSDeploy step: can we even open a TCP connection to
+      # the WMSVC endpoint? This tells us whether a stuck deploy is a
+      # network-level block (this step also hangs/fails) or something
+      # happening inside the Web Deploy handshake itself (this step is
+      # fine, but the deploy step below still hangs).
+      - name: Check Web Deploy endpoint connectivity
+        shell: pwsh
+        run: |
+          $publishServer = "${{ secrets.PUBLISH_SERVER }}"
+          # PUBLISH_SERVER may be a bare host:port or a full msdeploy.axd URL —
+          # pull out just the hostname and port for a raw TCP test.
+          if ($publishServer -match '^https?://') {
+            $uri = [Uri]$publishServer
+            $hostName = $uri.Host
+            $port = if ($uri.Port -gt 0) { $uri.Port } else { 8172 }
+          } else {
+            $parts = $publishServer -split ':'
+            $hostName = $parts[0]
+            $port = if ($parts.Length -gt 1) { [int]$parts[1] } else { 8172 }
+          }
+          Write-Host "Testing TCP connectivity to $hostName`:$port ..."
+          $result = Test-NetConnection -ComputerName $hostName -Port $port -WarningAction SilentlyContinue
+          $result | Format-List
+          if (-not $result.TcpTestSucceeded) {
+            throw "Could not open a TCP connection to $hostName`:$port. This points to a network-level block (firewall/routing) rather than an app-level issue — worth raising with MonsterASP.NET support along with this result."
+          }
+
       - name: Publish & deploy via Web Deploy
+        timeout-minutes: 10
         run: |
           dotnet msbuild aspnet-core/src/SupportTicketSystem.HttpApi.Host/SupportTicketSystem.HttpApi.Host.csproj `
             /t:Build `
