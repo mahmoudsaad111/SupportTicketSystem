@@ -37,4 +37,8 @@
     <None Remove="Logs\**" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="openiddict.pfx" CopyToPublishDirectory="Always" />
+  </ItemGroup>
+
 </Project>

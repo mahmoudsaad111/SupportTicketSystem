@@ -38,6 +38,17 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Prepare OpenIddict certificate
+        shell: pwsh
+        env:
+          OPENIDDICT_PFX_BASE64: ${{ secrets.OPENIDDICT_PFX_BASE64 }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:OPENIDDICT_PFX_BASE64)) {
+            throw "Missing GitHub secret OPENIDDICT_PFX_BASE64."
+          }
+          $pfxPath = "aspnet-core/src/SupportTicketSystem.HttpApi.Host/openiddict.pfx"
+          [IO.File]::WriteAllBytes($pfxPath, [Convert]::FromBase64String($env:OPENIDDICT_PFX_BASE64))
+
       - name: Install ABP client-side libraries
         working-directory: aspnet-core
         shell: pwsh
