@@ -107,8 +107,11 @@ jobs:
           --configuration Release
           --no-restore
         env:
+          ASPNETCORE_ENVIRONMENT: Production
           ConnectionStrings__Default: ${{ secrets.PRODUCTION_CONNECTION_STRING }}
+          OpenIddict__Applications__SupportTicketSystem_App__ClientId: SupportTicketSystem_App
           OpenIddict__Applications__SupportTicketSystem_App__RootUrl: https://supportticketsystem.runasp.net
+          OpenIddict__Applications__SupportTicketSystem_Swagger__ClientId: SupportTicketSystem_Swagger
           OpenIddict__Applications__SupportTicketSystem_Swagger__RootUrl: https://supportticketsystem.runasp.net
 
       # ==========================================
