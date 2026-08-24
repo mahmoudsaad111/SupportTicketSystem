@@ -1,0 +1,143 @@
+<div class="dash">
+  <header class="dash__header">
+    <div>
+      <h1 class="dash__title">Dashboard</h1>
+      <p class="dash__subtitle">Overview of your support tickets</p>
+    </div>
+  </header>
+
+  @if (loading) {
+    <div class="dash__state">
+      <span class="spinner"></span>
+      <span>Loading dashboard&hellip;</span>
+    </div>
+  } @else if (loadError) {
+    <div class="dash__state dash__state--error">
+      Couldn't load ticket data. Please check your connection and try again.
+    </div>
+  } @else {
+    <section class="stat-grid">
+      <article class="stat-card">
+        <div class="stat-card__icon stat-card__icon--blue">
+          <i class="bi bi-chat-square-text"></i>
+        </div>
+        <div class="stat-card__label">Total Tickets</div>
+        <div class="stat-card__value">{{ totalTickets }}</div>
+      </article>
+
+      <article class="stat-card">
+        <div class="stat-card__icon stat-card__icon--indigo">
+          <i class="bi bi-folder2-open"></i>
+        </div>
+        <div class="stat-card__label">Open Tickets</div>
+        <div class="stat-card__value">{{ openCount }}</div>
+      </article>
+
+      <article class="stat-card stat-card--clickable" routerLink="/overdue-tickets">
+        <div class="stat-card__icon stat-card__icon--red">
+          <i class="bi bi-clock-history"></i>
+        </div>
+        <div class="stat-card__label">Overdue Tickets</div>
+        <div class="stat-card__value">{{ overdueCount }}</div>
+      </article>
+
+      <article class="stat-card">
+        <div class="stat-card__icon stat-card__icon--green">
+          <i class="bi bi-check-circle"></i>
+        </div>
+        <div class="stat-card__label">Resolved Tickets</div>
+        <div class="stat-card__value">{{ resolvedCount }}</div>
+      </article>
+    </section>
+
+    <section class="dash__grid">
+      <div class="panel panel--table">
+        <div class="panel__header">
+          <h2 class="panel__title">Recent Tickets</h2>
+          <a routerLink="/tickets" class="panel__link">View all tickets</a>
+        </div>
+
+        @if (recentTickets.length === 0) {
+          <div class="panel__empty">No tickets yet.</div>
+        } @else {
+          <div class="table-wrap">
+            <table class="ticket-table">
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>Priority</th>
+                  <th>Status</th>
+                  <th>SLA Deadline</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (ticket of recentTickets; track trackByTicketId($index, ticket)) {
+                  <tr>
+                    <td class="ticket-table__title">{{ ticket.title }}</td>
+                    <td><span [class]="priorityBadgeClass(ticket.priority)">{{ PriorityLevelLabels[ticket.priority] }}</span></td>
+                    <td><span [class]="statusBadgeClass(ticket.status)">{{ TicketStatusLabels[ticket.status] }}</span></td>
+                    <td>{{ ticket.slaDeadline | date: 'MMM d, y, h:mm a' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+        <p class="panel__note">
+          Customer and agent-name columns aren't shown yet &mdash; TicketDto doesn't currently expose
+          creator or assigned-agent display names.
+        </p>
+      </div>
+
+      <div class="panel panel--side">
+        <div class="panel__header">
+          <h2 class="panel__title">Tickets by Status</h2>
+        </div>
+        <div class="donut-wrap">
+          <canvas #statusChart></canvas>
+          <div class="donut-wrap__center">
+            <span class="donut-wrap__value">{{ totalTickets }}</span>
+            <span class="donut-wrap__label">Total</span>
+          </div>
+        </div>
+        <ul class="legend">
+          @for (slice of statusSlices; track trackBySliceLabel($index, slice)) {
+            <li class="legend__item">
+              <span class="legend__dot" [style.background]="slice.color"></span>
+              <span class="legend__label">{{ slice.label }}</span>
+              <span class="legend__value">{{ slice.value }}</span>
+            </li>
+          }
+        </ul>
+      </div>
+
+      <div class="panel panel--side">
+        <div class="panel__header">
+          <h2 class="panel__title">Tickets by Priority</h2>
+        </div>
+        <div class="donut-wrap">
+          <canvas #priorityChart></canvas>
+          <div class="donut-wrap__center">
+            <span class="donut-wrap__value">{{ priorityTotal }}</span>
+            <span class="donut-wrap__label">Sampled</span>
+          </div>
+        </div>
+        <ul class="legend">
+          @for (slice of prioritySlices; track trackBySliceLabel($index, slice)) {
+            <li class="legend__item">
+              <span class="legend__dot" [style.background]="slice.color"></span>
+              <span class="legend__label">{{ slice.label }}</span>
+              <span class="legend__value">{{ slice.value }}</span>
+            </li>
+          }
+        </ul>
+        @if (prioritySampleCapped) {
+          <p class="panel__note">
+            Based on the most recent {{ priorityTotal }} tickets &mdash; there's no priority filter on
+            the backend yet to aggregate the full set.
+          </p>
+        }
+      </div>
+    </section>
+  }
+</div>

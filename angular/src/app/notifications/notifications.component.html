@@ -1,0 +1,59 @@
+<div class="notifications-page">
+  <header class="notifications-page__header">
+    <div>
+      <h1 class="notifications-page__title">Notifications</h1>
+      <p class="notifications-page__subtitle">
+        {{ unreadCount }} unread of {{ notifications.length }}
+      </p>
+    </div>
+    @if (unreadCount > 0) {
+      <button type="button" class="btn btn--ghost" [disabled]="markingAllRead" (click)="markAllAsRead()">
+        {{ markingAllRead ? 'Marking…' : 'Mark all as read' }}
+      </button>
+    }
+  </header>
+
+  @if (loading) {
+    <div class="state">
+      <span class="spinner"></span>
+      <span>Loading notifications&hellip;</span>
+    </div>
+  } @else if (loadError) {
+    <div class="state state--error">Couldn't load notifications. Please try again.</div>
+  } @else if (notifications.length === 0) {
+    <div class="state">
+      <i class="bi bi-bell"></i>
+      <span>Nothing here yet.</span>
+    </div>
+  } @else {
+    <div class="panel">
+      <ul class="notif-list">
+        @for (notification of notifications; track trackByNotificationId($index, notification)) {
+          <li class="notif-item" [class.notif-item--unread]="!notification.isRead">
+            <span class="notif-item__dot" [class.notif-item__dot--unread]="!notification.isRead"></span>
+            <div class="notif-item__body">
+              <div class="notif-item__title">{{ notification.title }}</div>
+              <div class="notif-item__message">{{ notification.message }}</div>
+              <div class="notif-item__meta">
+                <span>{{ timeAgo(notification.creationTime) }}</span>
+                @if (notification.ticketId) {
+                  <a [routerLink]="['/tickets', notification.ticketId]" class="notif-item__link">View ticket</a>
+                }
+              </div>
+            </div>
+            @if (!notification.isRead) {
+              <button
+                type="button"
+                class="link-btn"
+                [disabled]="markingReadId === notification.id"
+                (click)="markAsRead(notification)"
+              >
+                {{ markingReadId === notification.id ? 'Marking…' : 'Mark as read' }}
+              </button>
+            }
+          </li>
+        }
+      </ul>
+    </div>
+  }
+</div>

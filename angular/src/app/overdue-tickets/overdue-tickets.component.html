@@ -1,0 +1,126 @@
+<div class="overdue-page">
+  <header class="overdue-page__header">
+    <div>
+      <h1 class="overdue-page__title">Overdue Tickets</h1>
+      <p class="overdue-page__subtitle">{{ tickets.length }} ticket{{ tickets.length === 1 ? '' : 's' }} past their SLA deadline</p>
+    </div>
+  </header>
+
+  @if (loading) {
+    <div class="state">
+      <span class="spinner"></span>
+      <span>Loading overdue tickets&hellip;</span>
+    </div>
+  } @else if (loadError) {
+    <div class="state state--error">Couldn't load overdue tickets. Please try again.</div>
+  } @else if (tickets.length === 0) {
+    <div class="state state--empty">
+      <i class="bi bi-check-circle"></i>
+      <span>Nothing overdue right now.</span>
+    </div>
+  } @else {
+    <div class="panel">
+      <div class="table-wrap">
+        <table class="ticket-table">
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Assigned Agent</th>
+              <th>Priority</th>
+              <th>Status</th>
+              <th>SLA Deadline</th>
+              <th>Overdue By</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (ticket of tickets; track trackByTicketId($index, ticket)) {
+              <tr>
+                <td class="ticket-table__title">
+                  <a [routerLink]="['/tickets', ticket.id]" class="ticket-link">{{ ticket.title }}</a>
+                </td>
+                <td>{{ userDisplayName(ticket.assignedAgentId) }}</td>
+                <td><span [class]="priorityBadgeClass(ticket.priority)">{{ PriorityLevelLabels[ticket.priority] }}</span></td>
+                <td><span [class]="statusBadgeClass(ticket.status)">{{ TicketStatusLabels[ticket.status] }}</span></td>
+                <td>{{ ticket.slaDeadline | date: 'MMM d, y, h:mm a' }}</td>
+                <td class="overdue-cell">{{ overdueBy(ticket.slaDeadline) }}</td>
+                <td class="ticket-table__actions">
+                  @if (canAssignToOthers && ticket.assignedAgentId) {
+                    <button type="button" class="link-btn" [disabled]="actionBusy" (click)="openAssign(ticket)">Reassign</button>
+                  }
+                  @if (canManageTicket(ticket) && ticket.status !== TicketStatus.Resolved && ticket.status !== TicketStatus.Closed) {
+                    <button type="button" class="link-btn" [disabled]="actionBusy" (click)="resolve(ticket)">Resolve</button>
+                  }
+                  @if (canManageTicket(ticket) && ticket.status === TicketStatus.Resolved) {
+                    <button type="button" class="link-btn" [disabled]="actionBusy" (click)="close(ticket)">Close</button>
+                    <button type="button" class="link-btn" [disabled]="actionBusy" (click)="openReopen(ticket)">Reopen</button>
+                  }
+                  @if (canManageTicket(ticket) && ticket.status === TicketStatus.Closed) {
+                    <button type="button" class="link-btn" [disabled]="actionBusy" (click)="openReopen(ticket)">Reopen</button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <p class="panel__note">
+        This list comes from a single overdue-tickets endpoint with no server-side paging, so everything
+        currently overdue loads at once and is sorted here by how overdue it is.
+      </p>
+    </div>
+  }
+</div>
+
+@if (actionMode) {
+  <div class="overlay" (click)="closeAction()">
+    <div class="overlay__panel" (click)="$event.stopPropagation()">
+      @if (actionMode === 'reopen') {
+        <h2 class="overlay__title">Reopen Ticket</h2>
+        <p class="overlay__subtitle">{{ actionTicket?.title }}</p>
+        <label class="form-field">
+          <span>Reason</span>
+          <textarea rows="3" [(ngModel)]="reopenReason" placeholder="Why is this being reopened?"></textarea>
+        </label>
+        @if (actionErrorMessage) {
+          <p class="overlay__error">{{ actionErrorMessage }}</p>
+        }
+        <div class="overlay__actions">
+          <button type="button" class="btn btn--ghost" (click)="closeAction()">Cancel</button>
+          <button type="button" class="btn btn--primary" [disabled]="actionBusy" (click)="submitReopen()">
+            {{ actionBusy ? 'Reopening…' : 'Reopen' }}
+          </button>
+        </div>
+      }
+
+      @if (actionMode === 'assign') {
+        <h2 class="overlay__title">Assign Ticket</h2>
+        <p class="overlay__subtitle">{{ actionTicket?.title }}</p>
+        <label class="form-field">
+          <span>User</span>
+          <select [(ngModel)]="assignAgentId" [disabled]="usersLoading">
+            <option value="">{{ usersLoading ? 'Loading users…' : 'Select a user' }}</option>
+            @for (user of users; track user.id) {
+              <option [value]="user.id">{{ user.name || user.surname ? ((user.name || '') + ' ' + (user.surname || '')).trim() : user.userName }}</option>
+            }
+          </select>
+        </label>
+        @if (actionTicket?.assignedAgentId) {
+          <label class="form-field form-field--checkbox">
+            <input type="checkbox" [(ngModel)]="resetSlaDeadline" />
+            <span>Reset SLA deadline</span>
+          </label>
+        }
+        @if (actionErrorMessage) {
+          <p class="overlay__error">{{ actionErrorMessage }}</p>
+        }
+        <div class="overlay__actions">
+          <button type="button" class="btn btn--ghost" (click)="closeAction()">Cancel</button>
+          <button type="button" class="btn btn--primary" [disabled]="actionBusy || usersLoading" (click)="submitAssign()">
+            {{ actionBusy ? 'Assigning…' : 'Assign' }}
+          </button>
+        </div>
+      }
+    </div>
+  </div>
+}

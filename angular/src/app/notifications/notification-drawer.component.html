@@ -1,0 +1,81 @@
+<!-- Edge tab, only shown while the panel is closed -->
+@if (!open) {
+  <button type="button" class="notif-drawer__tab" (click)="openDrawer()" aria-label="Open notifications">
+    <i class="bi bi-bell"></i>
+    @if ((unreadCount$ | async); as count) {
+      @if (count > 0) {
+        <span class="notif-drawer__tab-badge">{{ count > 99 ? '99+' : count }}</span>
+      }
+    }
+  </button>
+}
+
+<aside class="notif-drawer" [class.notif-drawer--open]="open" [attr.aria-hidden]="!open">
+  <header class="notif-drawer__header">
+    <div>
+      <h3 class="notif-drawer__title">Notifications</h3>
+      @if (loaded && !loading && !loadError) {
+        <span class="notif-drawer__subtitle">{{ unreadCount }} unread</span>
+      }
+    </div>
+    <div class="notif-drawer__header-actions">
+      @if (unreadCount > 0) {
+        <button
+          type="button"
+          class="notif-drawer__mark-all"
+          [disabled]="markingAllRead"
+          (click)="markAllAsRead($event)"
+        >
+          {{ markingAllRead ? 'Marking…' : 'Mark all read' }}
+        </button>
+      }
+      <button type="button" class="notif-drawer__close" (click)="close()" aria-label="Close">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+  </header>
+
+  <div class="notif-drawer__body">
+    @if (loading) {
+      <div class="notif-drawer__state">
+        <span class="notif-drawer__spinner"></span>
+        <span>Loading&hellip;</span>
+      </div>
+    } @else if (loadError) {
+      <div class="notif-drawer__state notif-drawer__state--error">
+        Couldn't load notifications.
+      </div>
+    } @else if (notifications.length === 0) {
+      <div class="notif-drawer__state">
+        <i class="bi bi-bell"></i>
+        <span>Nothing here yet.</span>
+      </div>
+    } @else {
+      <ul class="notif-drawer__list">
+        @for (notification of notifications; track trackByNotificationId($index, notification)) {
+          <li
+            class="notif-drawer__item"
+            [class.notif-drawer__item--unread]="!notification.isRead"
+            (click)="onNotificationClick(notification)"
+          >
+            <span
+              class="notif-drawer__dot"
+              [class.notif-drawer__dot--unread]="!notification.isRead"
+            ></span>
+            <div class="notif-drawer__item-body">
+              <div class="notif-drawer__item-title">{{ notification.title }}</div>
+              <div class="notif-drawer__item-message">{{ notification.message }}</div>
+              <div class="notif-drawer__item-time">{{ timeAgo(notification.creationTime) }}</div>
+            </div>
+          </li>
+        }
+      </ul>
+    }
+  </div>
+
+  <footer class="notif-drawer__footer">
+    <a routerLink="/notifications" class="notif-drawer__view-all" (click)="close()">
+      View all notifications
+    </a>
+  </footer>
+</aside>

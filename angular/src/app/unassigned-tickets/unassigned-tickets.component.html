@@ -1,0 +1,129 @@
+<div class="unassigned-page">
+  <header class="unassigned-page__header">
+    <div>
+      <h1 class="unassigned-page__title">Unassigned Tickets</h1>
+      <p class="unassigned-page__subtitle">
+        {{ unassignedTickets.length }} unassigned ticket{{ unassignedTickets.length === 1 ? '' : 's' }}
+      </p>
+    </div>
+  </header>
+
+  <div class="filter-bar">
+    <div class="filter-bar__field">
+      <label>Status</label>
+      <select [(ngModel)]="statusFilter" (ngModelChange)="onStatusFilterChange()">
+        <option value="all">All Status</option>
+        @for (status of statusOptions; track status) {
+          <option [ngValue]="status">{{ TicketStatusLabels[status] }}</option>
+        }
+      </select>
+    </div>
+  </div>
+
+  @if (loading) {
+    <div class="state">
+      <span class="spinner"></span>
+      <span>Loading unassigned tickets&hellip;</span>
+    </div>
+  } @else if (loadError) {
+    <div class="state state--error">Couldn't load tickets. Please try again.</div>
+  } @else if (unassignedTickets.length === 0) {
+    <div class="state state--empty">
+      <i class="bi bi-check-circle"></i>
+      <span>Everything{{ statusFilter !== 'all' ? ' with this status' : '' }} is assigned.</span>
+    </div>
+  } @else {
+    <div class="panel">
+      <div class="table-wrap">
+        <table class="ticket-table">
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Priority</th>
+              <th>Status</th>
+              <th>SLA Deadline</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (ticket of unassignedTickets; track trackByTicketId($index, ticket)) {
+              <tr>
+                <td class="ticket-table__title">
+                  <a [routerLink]="['/tickets', ticket.id]" class="ticket-link">{{ ticket.title }}</a>
+                </td>
+                <td><span [class]="priorityBadgeClass(ticket.priority)">{{ PriorityLevelLabels[ticket.priority] }}</span></td>
+                <td><span [class]="statusBadgeClass(ticket.status)">{{ TicketStatusLabels[ticket.status] }}</span></td>
+                <td>{{ ticket.slaDeadline | date: 'MMM d, y, h:mm a' }}</td>
+                <td class="ticket-table__actions">
+                  @if (currentUserId && canAssignToOthers) {
+                    <button type="button" class="link-btn" (click)="openClaim(ticket)">Claim</button>
+                  }
+                  @if (canAssignToOthers) {
+                    <button type="button" class="link-btn" (click)="openAssign(ticket)">Assign to&hellip;</button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      @if (fetchCapped) {
+        <p class="panel__note">
+          Showing unassigned tickets from the {{ allFetched.length }} most recent of {{ totalFetched }} total
+          &mdash; there's no server-side "unassigned only" filter yet, so this narrows a fetched batch
+          rather than the full set.
+        </p>
+      } @else {
+        <p class="panel__note">
+          There's no server-side "unassigned only" filter yet, so this narrows down the full ticket
+          list client-side.
+        </p>
+      }
+    </div>
+  }
+</div>
+
+@if (claimTicket) {
+  <div class="overlay" (click)="cancelClaim()">
+    <div class="overlay__panel" (click)="$event.stopPropagation()">
+      <h2 class="overlay__title">Claim Ticket</h2>
+      <p class="overlay__subtitle">Assign "{{ claimTicket.title }}" to yourself?</p>
+      @if (claimErrorMessage) {
+        <p class="overlay__error">{{ claimErrorMessage }}</p>
+      }
+      <div class="overlay__actions">
+        <button type="button" class="btn btn--ghost" (click)="cancelClaim()">Cancel</button>
+        <button type="button" class="btn btn--primary" [disabled]="claimBusy" (click)="confirmClaim()">
+          {{ claimBusy ? 'Claiming…' : 'Claim' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+@if (assignTicket) {
+  <div class="overlay" (click)="cancelAssign()">
+    <div class="overlay__panel" (click)="$event.stopPropagation()">
+      <h2 class="overlay__title">Assign Ticket</h2>
+      <p class="overlay__subtitle">{{ assignTicket.title }}</p>
+      <label class="form-field">
+        <span>User</span>
+        <select [(ngModel)]="assignAgentId" [disabled]="usersLoading">
+          <option value="">{{ usersLoading ? 'Loading users…' : 'Select a user' }}</option>
+          @for (user of users; track user.id) {
+            <option [value]="user.id">{{ user.name || user.surname ? ((user.name || '') + ' ' + (user.surname || '')).trim() : user.userName }}</option>
+          }
+        </select>
+      </label>
+      @if (assignErrorMessage) {
+        <p class="overlay__error">{{ assignErrorMessage }}</p>
+      }
+      <div class="overlay__actions">
+        <button type="button" class="btn btn--ghost" (click)="cancelAssign()">Cancel</button>
+        <button type="button" class="btn btn--primary" [disabled]="assignBusy" (click)="submitAssign()">
+          {{ assignBusy ? 'Assigning…' : 'Assign' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}

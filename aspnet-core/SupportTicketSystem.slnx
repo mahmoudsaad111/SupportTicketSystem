@@ -1,0 +1,35 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SupportTicketSystem.Application.Contracts/SupportTicketSystem.Application.Contracts.csproj" />
+    <Project Path="src/SupportTicketSystem.Application/SupportTicketSystem.Application.csproj" />
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    <Project Path="src/SupportTicketSystem.DbMigrator/SupportTicketSystem.DbMigrator.csproj" />
+    <Project Path="src/SupportTicketSystem.Domain.Shared/SupportTicketSystem.Domain.Shared.csproj" />
+    <Project Path="src/SupportTicketSystem.Domain/SupportTicketSystem.Domain.csproj" />
+    <Project Path="src/SupportTicketSystem.EntityFrameworkCore/SupportTicketSystem.EntityFrameworkCore.csproj" />
+    <Project Path="src/SupportTicketSystem.HttpApi.Client/SupportTicketSystem.HttpApi.Client.csproj" />
+    
+    <Project Path="src/SupportTicketSystem.HttpApi.Host/SupportTicketSystem.HttpApi.Host.csproj" />
+    <Project Path="src/SupportTicketSystem.HttpApi/SupportTicketSystem.HttpApi.csproj" />
+    
+    
+    
+  </Folder>
+  <Folder Name="/test/">
+    <Project Path="test/SupportTicketSystem.Application.Tests/SupportTicketSystem.Application.Tests.csproj" />
+    <Project Path="test/SupportTicketSystem.Domain.Tests/SupportTicketSystem.Domain.Tests.csproj" />
+    <Project Path="test/SupportTicketSystem.EntityFrameworkCore.Tests/SupportTicketSystem.EntityFrameworkCore.Tests.csproj" />
+    <Project Path="test/SupportTicketSystem.HttpApi.Client.ConsoleTestApp/SupportTicketSystem.HttpApi.Client.ConsoleTestApp.csproj" />
+    
+    <Project Path="test/SupportTicketSystem.TestBase/SupportTicketSystem.TestBase.csproj" />
+    
+  </Folder>
+</Solution>

@@ -1,0 +1,81 @@
+<div class="my-tickets-page">
+  <header class="my-tickets-page__header">
+    <div>
+      <h1 class="my-tickets-page__title">My Tickets</h1>
+      <p class="my-tickets-page__subtitle">Tickets assigned to you</p>
+    </div>
+  </header>
+
+  @if (noUserId) {
+    <div class="state">
+      You need to be signed in to see your assigned tickets.
+    </div>
+  } @else {
+    <div class="filter-bar">
+      <div class="filter-bar__field">
+        <label>Status</label>
+        <select [(ngModel)]="statusFilter" (ngModelChange)="onStatusFilterChange()">
+          <option value="all">All Status</option>
+          @for (status of statusOptions; track status) {
+            <option [ngValue]="status">{{ TicketStatusLabels[status] }}</option>
+          }
+        </select>
+      </div>
+    </div>
+
+    @if (loading) {
+      <div class="state">
+        <span class="spinner"></span>
+        <span>Loading your tickets&hellip;</span>
+      </div>
+    } @else if (loadError) {
+      <div class="state state--error">Couldn't load your tickets. Please try again.</div>
+    } @else if (tickets.length === 0) {
+      <div class="state">
+        No tickets assigned to you{{ statusFilter !== 'all' ? ' with this status' : '' }} right now.
+      </div>
+    } @else {
+      <div class="panel">
+        <div class="table-wrap">
+          <table class="ticket-table">
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Priority</th>
+                <th>Status</th>
+                <th>SLA Deadline</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (ticket of tickets; track trackByTicketId($index, ticket)) {
+                <tr>
+                  <td class="ticket-table__title">
+                    <a [routerLink]="['/tickets', ticket.id]" class="ticket-link">{{ ticket.title }}</a>
+                  </td>
+                  <td><span [class]="priorityBadgeClass(ticket.priority)">{{ PriorityLevelLabels[ticket.priority] }}</span></td>
+                  <td><span [class]="statusBadgeClass(ticket.status)">{{ TicketStatusLabels[ticket.status] }}</span></td>
+                  <td>{{ ticket.slaDeadline | date: 'MMM d, y, h:mm a' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div class="pagination">
+          <button type="button" class="btn btn--ghost" [disabled]="currentPage === 1" (click)="goToPage(currentPage - 1)">
+            Previous
+          </button>
+          <span class="pagination__label">Page {{ currentPage }} of {{ totalPages }}</span>
+          <button
+            type="button"
+            class="btn btn--ghost"
+            [disabled]="currentPage === totalPages"
+            (click)="goToPage(currentPage + 1)"
+          >
+            Next
+          </button>
+        </div>
+      </div>
+    }
+  }
+</div>

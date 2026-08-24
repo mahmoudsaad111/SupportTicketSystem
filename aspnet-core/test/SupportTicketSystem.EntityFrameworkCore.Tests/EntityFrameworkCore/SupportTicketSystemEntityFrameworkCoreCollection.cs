@@ -1,0 +1,9 @@
+﻿using Xunit;
+
+namespace SupportTicketSystem.EntityFrameworkCore;
+
+[CollectionDefinition(SupportTicketSystemTestConsts.CollectionDefinitionName)]
+public class SupportTicketSystemEntityFrameworkCoreCollection : ICollectionFixture<SupportTicketSystemEntityFrameworkCoreFixture>
+{
+
+}

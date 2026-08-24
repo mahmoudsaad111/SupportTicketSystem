@@ -1,0 +1,170 @@
+<div class="detail-page">
+  <a routerLink="/tickets" class="back-link"><i class="bi bi-arrow-left"></i> All Tickets</a>
+
+  @if (loading) {
+    <div class="state">
+      <span class="spinner"></span>
+      <span>Loading ticket&hellip;</span>
+    </div>
+  } @else if (loadError || !ticket) {
+    <div class="state state--error">Couldn't load this ticket. It may not exist, or you may not have access.</div>
+  } @else {
+    <header class="detail-page__header">
+      <div>
+        <h1 class="detail-page__title">{{ ticket.title }}</h1>
+        <p class="detail-page__id">#{{ ticket.id | slice: 0:8 }}</p>
+      </div>
+      <div class="detail-page__badges">
+        <span [class]="statusBadgeClass(ticket.status)">{{ TicketStatusLabels[ticket.status] }}</span>
+        <span [class]="priorityBadgeClass(ticket.priority)">{{ PriorityLevelLabels[ticket.priority] }}</span>
+      </div>
+    </header>
+
+    <div class="detail-grid">
+      <div class="panel">
+        <h2 class="panel__title">Description</h2>
+        <p class="detail-description">{{ ticket.description }}</p>
+
+        <div class="meta-grid">
+          <div class="meta-grid__item">
+            <span class="meta-grid__label">SLA Deadline</span>
+            <span class="meta-grid__value">{{ ticket.slaDeadline | date: 'MMM d, y, h:mm a' }}</span>
+          </div>
+          <div class="meta-grid__item">
+            <span class="meta-grid__label">Assigned Agent</span>
+            <span class="meta-grid__value">
+              {{ userDisplayName(ticket.assignedAgentId) }}
+            </span>
+          </div>
+        </div>
+
+        <h2 class="panel__title panel__title--spaced">Add a Comment</h2>
+        <textarea
+          rows="3"
+          class="comment-box"
+          [(ngModel)]="commentText"
+          placeholder="Write an update or note on this ticket…"
+        ></textarea>
+        @if (commentErrorMessage) {
+          <p class="field-error">{{ commentErrorMessage }}</p>
+        }
+        @if (commentJustSubmitted) {
+          <p class="field-success">Comment added.</p>
+        }
+        <button
+          type="button"
+          class="btn btn--primary"
+          [disabled]="commentBusy || !commentText.trim()"
+          (click)="submitComment()"
+        >
+          {{ commentBusy ? 'Posting…' : 'Post Comment' }}
+        </button>
+
+        <div class="comments">
+          <h2 class="panel__title panel__title--spaced">Comments</h2>
+          @if (!ticket.comments?.length) {
+            <p class="comments__empty">No comments yet.</p>
+          } @else {
+            <div class="comments__list">
+              @for (comment of ticket.comments; track comment.id) {
+                <article class="comment">
+                  <div class="comment__meta">
+                    <span>Comment</span>
+                    <time [attr.datetime]="comment.creationTime">{{ comment.creationTime | date: 'MMM d, y, h:mm a' }}</time>
+                  </div>
+                  <p class="comment__text">{{ comment.text }}</p>
+                </article>
+              }
+            </div>
+          }
+        </div>
+      </div>
+
+      <div class="panel panel--actions">
+        <h2 class="panel__title">Actions</h2>
+
+        <label class="form-field">
+          <span>Priority</span>
+          <select [disabled]="!canManageTicket(ticket) || actionBusy" [ngModel]="ticket.priority" (ngModelChange)="changePriority($event)">
+            @for (priority of priorityOptions; track priority) {
+              <option [ngValue]="priority">{{ PriorityLevelLabels[priority] }}</option>
+            }
+          </select>
+        </label>
+
+        <div class="action-buttons">
+          @if (canAssignTicket(ticket)) {
+            <button type="button" class="btn btn--ghost" [disabled]="actionBusy" (click)="openAssign()">Assign</button>
+          }
+          @if (ticket.status !== TicketStatus.Resolved && ticket.status !== TicketStatus.Closed) {
+            @if (canManageTicket(ticket)) {
+              <button type="button" class="btn btn--primary" [disabled]="!canManageTicket(ticket) || actionBusy" (click)="resolve()">Resolve</button>
+            }
+          }
+          @if (ticket.status === TicketStatus.Resolved) {
+            @if (canManageTicket(ticket)) {
+              <button type="button" class="btn btn--primary" [disabled]="!canManageTicket(ticket) || actionBusy" (click)="close()">Close</button>
+              <button type="button" class="btn btn--ghost" [disabled]="!canManageTicket(ticket) || actionBusy" (click)="openReopen()">Reopen</button>
+            }
+          }
+          @if (ticket.status === TicketStatus.Closed) {
+            @if (canManageTicket(ticket)) {
+              <button type="button" class="btn btn--ghost" [disabled]="!canManageTicket(ticket) || actionBusy" (click)="openReopen()">Reopen</button>
+            }
+          }
+        </div>
+      </div>
+    </div>
+  }
+</div>
+
+@if (actionMode) {
+  <div class="overlay" (click)="closeAction()">
+    <div class="overlay__panel" (click)="$event.stopPropagation()">
+      @if (actionMode === 'reopen') {
+        <h2 class="overlay__title">Reopen Ticket</h2>
+        <label class="form-field">
+          <span>Reason</span>
+          <textarea rows="3" [(ngModel)]="reopenReason" placeholder="Why is this being reopened?"></textarea>
+        </label>
+        @if (actionErrorMessage) {
+          <p class="overlay__error">{{ actionErrorMessage }}</p>
+        }
+        <div class="overlay__actions">
+          <button type="button" class="btn btn--ghost" (click)="closeAction()">Cancel</button>
+          <button type="button" class="btn btn--primary" [disabled]="actionBusy" (click)="submitReopen()">
+            {{ actionBusy ? 'Reopening…' : 'Reopen' }}
+          </button>
+        </div>
+      }
+
+      @if (actionMode === 'assign') {
+        <h2 class="overlay__title">Assign Ticket</h2>
+        <label class="form-field">
+          <span>User</span>
+          <select [(ngModel)]="assignAgentId" [disabled]="usersLoading">
+            <option value="">{{ usersLoading ? 'Loading users…' : 'Select a user' }}</option>
+            @for (user of users; track user.id) {
+              <option [value]="user.id">{{ user.name || user.surname ? ((user.name || '') + ' ' + (user.surname || '')).trim() : user.userName }}</option>
+            }
+          </select>
+        </label>
+          @if (ticket?.assignedAgentId) {
+            <label class="form-field form-field--checkbox">
+              <input type="checkbox" [(ngModel)]="resetSlaDeadline" />
+              <span>Reset SLA deadline</span>
+            </label>
+          }
+        @if (actionErrorMessage) {
+          <p class="overlay__error">{{ actionErrorMessage }}</p>
+        }
+        <div class="overlay__actions">
+          <button type="button" class="btn btn--ghost" (click)="closeAction()">Cancel</button>
+          <button type="button" class="btn btn--primary" [disabled]="actionBusy" (click)="submitAssign()">
+            {{ actionBusy ? 'Assigning…' : 'Assign' }}
+          </button>
+        </div>
+      }
+    </div>
+  </div>
+}

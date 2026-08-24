@@ -1,0 +1,35 @@
+{
+  "culture": "en",
+  "texts": {
+    "AppName": "SupportTicketSystem",
+    "Menu:Home": "Home",
+    "Welcome": "Welcome",
+    "LongWelcomeMessage": "Welcome to the application. This is a startup project based on the ABP framework. For more information, visit abp.io.",
+    "SupportTicketSystem:00001": "Cannot assign a closed ticket.",
+    "SupportTicketSystem:00002": "Cannot resolve a ticket that has not been assigned.",
+    "SupportTicketSystem:00003": "Only the assigned agent can resolve this ticket.",
+    "SupportTicketSystem:00004": "Ticket is already resolved or closed.",
+    "SupportTicketSystem:00005": "Cannot add a comment to a closed ticket.",
+    "SupportTicketSystem:00006": "Only a resolved or closed ticket can be reopened.",
+    "SupportTicketSystem:00007": "Only a resolved ticket can be closed.",
+    "SupportTicketSystem:00008": "Cannot change priority on a closed ticket.",
+    "SupportTicketSystem:00009": "Invalid priority level.",
+    "SupportTicketSystem:00010": "Only the assigned agent can manage this ticket.",
+    "SupportTicketSystem:00011": "Only the assigned agent can reopen this ticket.",
+    "SupportTicketSystem:00012": "Only the assigned agent can close this ticket.",
+    "SupportTicketSystem:00013": "Only the assigned agent can change the priority of this ticket.",
+    "SupportTicketSystem:00014": "Only the currently assigned agent can reassign this ticket to someone else.",
+    "SupportTicketSystem:00015": "Cannot reassign a resolved ticket. Reopen it first.",
+
+    // permission names
+
+    "Permission:Tickets": "Tickets",
+    "Permission:Tickets.Create": "Create Ticket",
+    "Permission:Tickets.Assign": "Assign Ticket",
+    "Permission:Tickets.Resolve": "Resolve Ticket",
+    "Permission:Tickets.Reopen": "Reopen Ticket",
+    "Permission:Tickets.Close": "Close Ticket",
+    "Permission:Tickets.ChangePriority": "Change Ticket Priority",
+    "Permission:Tickets.ViewAll": "View All Tickets"
+  }
+}

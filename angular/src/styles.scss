@@ -1,0 +1,142 @@
+/* You can add your styles to this file, and also import other style files */
+
+@keyframes donut-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+:root {
+  --lpx-logo: url('/assets/images/logo/support-ticket-logo.svg');
+  --lpx-logo-icon: url('/assets/images/logo/support-ticket-mark.svg');
+
+  /* Recolor the LeptonX shell (sidebar/toolbar/active nav item) to match
+     the indigo accent (#4f46e5) already used across the dashboard, ticket,
+     and notifications pages, so the sidebar/topbar and the content pages
+     read as one consistent design instead of two different color schemes. */
+  --lpx-brand: #4f46e5;
+  --lpx-primary: #4f46e5;
+  --lpx-secondary: #6366f1;
+  --lpx-success: #16a34a;
+  --lpx-info: #2563eb;
+  --lpx-danger: #dc2626;
+  --lpx-warning: #ea580c;
+}
+
+/* LeptonX hardcodes the active/expanded sidebar item's background to a flat
+   dark gray (#222) rather than driving it off --lpx-brand. Overriding it
+   here gives the active nav item a solid indigo highlight, matching the
+   filled active-item look in the reference designs (e.g. the highlighted
+   "Tickets" row) instead of the default plain gray highlight. */
+.lpx-nav-menu .lpx-menu-item-link.selected,
+.lpx-nav-menu .lpx-menu-item-link.expanded,
+.lpx-menu-item.selected {
+  background-color: var(--lpx-brand) !important;
+}
+.lpx-nav-menu .lpx-menu-item-link.selected .lpx-menu-item-icon,
+.lpx-nav-menu .lpx-menu-item-link.selected .dd-icon,
+.lpx-menu-item.selected .lpx-menu-item-icon,
+.lpx-menu-item.selected .dd-icon {
+  color: #fff !important;
+  opacity: 1;
+}
+
+/* LeptonX's collapsed ("hover-trigger") sidebar only widens the *inner*
+   .lpx-nav to 280px on hover — the *outer* .lpx-sidebar-container (the
+   element actually being hovered) stays a 72px hit-box the whole time.
+   As soon as the mouse moves from the icon rail toward the now-visible
+   wide labels, it exits that 72px box, :hover stops matching, and the
+   menu snaps shut again — the exact "move the mouse away and back" bug.
+   Forcing the container itself to grow on hover keeps the hover state
+   alive across the whole visible menu. Covers both the manual desktop
+   collapse toggle and the automatic tablet-width collapse. */
+@media only screen and (min-width: 1200px) {
+  #lpx-wrapper.hover-trigger .lpx-sidebar-container:hover {
+    width: 280px !important;
+    max-width: 280px !important;
+  }
+
+  #lpx-wrapper.hover-trigger:has(.lpx-sidebar-container:hover) .lpx-content-container {
+    margin-left: 280px !important;
+    transition: margin-left 0.25s ease;
+  }
+}
+@media only screen and (min-width: 768px) and (max-width: 1199px) {
+  .lpx-sidebar-container:hover {
+    width: 280px !important;
+    max-width: 280px !important;
+  }
+
+  #lpx-wrapper:has(.lpx-sidebar-container:hover) .lpx-content-container {
+    margin-left: 280px !important;
+    transition: margin-left 0.25s ease;
+  }
+}
+
+/* Stock LeptonX deliberately leaves .lpx-content-container's margin-left
+   fixed at 72px even while the sidebar is hovered/expanded — the expanded
+   menu is meant to float ON TOP of the content as an overlay, not push it
+   (confirmed against ABP's own source/issue tracker). That means content
+   under the expanded 280px sidebar is genuinely covered while hovering,
+   which is standard for this pattern but reads as "the page doesn't
+   respond" / content being cut off. Shifting the content's margin to
+   match on hover makes the layout actually push instead of overlay. */
+@media only screen and (min-width: 1200px) {
+  #lpx-wrapper.hover-trigger .lpx-sidebar-container:hover ~ .lpx-content-container {
+    margin-left: 280px !important;
+    transition: margin-left 0.25s ease;
+  }
+}
+@media only screen and (min-width: 768px) and (max-width: 1199px) {
+  .lpx-sidebar-container:hover ~ .lpx-content-container {
+    margin-left: 280px !important;
+    transition: margin-left 0.25s ease;
+  }
+}
+
+.donut {
+  display: inline-block;
+  border: 4px solid rgba(0, 0, 0, 0.1);
+  border-left-color: #7983ff;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  animation: donut-spin 1.2s linear infinite;
+
+  &.centered {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+}
+
+.abp-logo {
+  background-repeat: no-repeat;
+}
+
+.abp-support {
+  width: 178px;
+  height: 30px;
+  background-image: url('/assets/images/getting-started/abp-support.svg');
+}
+
+.abp-community {
+  width: 215px;
+  height: 30px;
+  background-image: url('/assets/images/getting-started/abp-community.svg');
+}
+
+.abp-blog {
+  width: 142px;
+  height: 30px;
+  background-image: url('/assets/images/getting-started/abp-blog.svg');
+}
+
+.logo-x {
+  width: 20px;
+  height: 20px;
+  background-image: url('/assets/images/getting-started/x.svg');
+}

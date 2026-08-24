@@ -1,0 +1,9 @@
+﻿using SupportTicketSystem.EntityFrameworkCore;
+using Xunit;
+
+namespace SupportTicketSystem.EntityFrameworkCore;
+
+public class SupportTicketSystemEntityFrameworkCoreCollectionFixtureBase : ICollectionFixture<SupportTicketSystemEntityFrameworkCoreFixture>
+{
+
+}
