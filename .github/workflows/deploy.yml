@@ -38,6 +38,16 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Install ABP client-side libraries
+        working-directory: aspnet-core
+        shell: pwsh
+        run: |
+          dotnet tool install --global Volo.Abp.Cli --version 10.6.0
+          abp install-libs
+          if (!(Test-Path "src/SupportTicketSystem.HttpApi.Host/wwwroot/libs")) {
+            throw "ABP client-side libraries were not installed."
+          }
+
       # GitHub's windows-latest runner doesn't ship Web Deploy by default —
       # install it explicitly so MSBuild can actually push content over
       # MSDeploy/WMSVC to the shared host.
