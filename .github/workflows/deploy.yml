@@ -11,96 +11,42 @@ jobs:
   deploy:
     runs-on: windows-latest
 
+    env:
+      DOTNET_VERSION: "10.0.x"
+      NODE_VERSION: "20"
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       # -------------------------
-      # Angular
+      # Setup Node
       # -------------------------
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "24"
-          cache: "yarn"
+          node-version: ${{ env.NODE_VERSION }}
+          cache: yarn
           cache-dependency-path: angular/yarn.lock
 
+      # -------------------------
+      # Build Angular
+      # -------------------------
       - name: Install frontend dependencies
         working-directory: angular
         run: yarn install --frozen-lockfile
 
-      - name: Build Angular
+      - name: Build frontend
         working-directory: angular
         run: yarn build --configuration production
 
-      - name: Find Angular index.html
-        shell: pwsh
-        run: |
-          Write-Host "Searching for Angular index.html..."
-
-          $index = Get-ChildItem `
-            -Path "angular/dist" `
-            -Filter "index.html" `
-            -Recurse `
-            -File `
-            | Select-Object -First 1
-
-          if ($null -eq $index) {
-            Write-Host "Angular dist contents:"
-            Get-ChildItem -Path "angular/dist" -Recurse | Select-Object FullName
-
-            throw "Angular index.html was not found under angular/dist."
-          }
-
-          Write-Host "Found Angular index.html:"
-          Write-Host $index.FullName
-
-          "ANGULAR_OUTPUT_DIR=$($index.Directory.FullName)" >> $env:GITHUB_ENV
-
-      - name: Copy Angular build into backend wwwroot
-        shell: pwsh
-        run: |
-          $source = $env:ANGULAR_OUTPUT_DIR
-          $dest = "aspnet-core/src/SupportTicketSystem.HttpApi.Host/wwwroot"
-
-          Write-Host "Angular source: $source"
-          Write-Host "Backend wwwroot: $dest"
-
-          New-Item `
-            -ItemType Directory `
-            -Force `
-            -Path $dest | Out-Null
-
-          Copy-Item `
-            -Path "$source/*" `
-            -Destination $dest `
-            -Recurse `
-            -Force
-
-      - name: Verify Angular files
-        shell: pwsh
-        run: |
-          $wwwroot = "aspnet-core/src/SupportTicketSystem.HttpApi.Host/wwwroot"
-
-          if (!(Test-Path "$wwwroot/index.html")) {
-            throw "Angular index.html was not copied to wwwroot."
-          }
-
-          if (!(Test-Path "$wwwroot/libs")) {
-            Write-Host "Warning: wwwroot/libs does not exist yet. ABP install-libs will run next."
-          }
-
-          Write-Host "Angular frontend successfully copied."
-          Write-Host "index.html:"
-          Get-Item "$wwwroot/index.html"
-
       # -------------------------
-      # .NET
+      # Setup .NET
       # -------------------------
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "10.0.x"
+          dotnet-version: ${{ env.DOTNET_VERSION }}
 
       # -------------------------
       # OpenIddict certificate
@@ -122,7 +68,7 @@ jobs:
           )
 
       # -------------------------
-      # ABP libraries
+      # ABP CLI
       # -------------------------
       - name: Install ABP CLI
         run: |
@@ -138,43 +84,16 @@ jobs:
             throw "ABP client-side libraries were not installed."
           }
 
-          Write-Host "ABP client-side libraries installed successfully."
-
-      # -------------------------
-      # Verify complete wwwroot
-      # -------------------------
-      - name: Verify frontend before deployment
-        shell: pwsh
-        run: |
-          $wwwroot = "aspnet-core/src/SupportTicketSystem.HttpApi.Host/wwwroot"
-
-          if (!(Test-Path "$wwwroot/index.html")) {
-            throw "index.html is missing from wwwroot."
-          }
-
-          if (!(Test-Path "$wwwroot/libs")) {
-            throw "libs folder is missing from wwwroot."
-          }
-
-          Write-Host "Frontend deployment files are ready."
-
-          Write-Host "wwwroot contents:"
-          Get-ChildItem $wwwroot | Select-Object Name
-
-      # -------------------------
-      # Web Deploy
-      # -------------------------
-      - name: Install Web Deploy
-        run: choco install webdeploy -y --no-progress
-
       # -------------------------
       # Restore
       # -------------------------
       - name: Restore Host
-        run: dotnet restore aspnet-core/src/SupportTicketSystem.HttpApi.Host/SupportTicketSystem.HttpApi.Host.csproj
+        run: |
+          dotnet restore aspnet-core/src/SupportTicketSystem.HttpApi.Host/SupportTicketSystem.HttpApi.Host.csproj
 
       - name: Restore DbMigrator
-        run: dotnet restore aspnet-core/src/SupportTicketSystem.DbMigrator/SupportTicketSystem.DbMigrator.csproj
+        run: |
+          dotnet restore aspnet-core/src/SupportTicketSystem.DbMigrator/SupportTicketSystem.DbMigrator.csproj
 
       # -------------------------
       # Database migration
@@ -189,26 +108,175 @@ jobs:
           ConnectionStrings__Default: ${{ secrets.PRODUCTION_CONNECTION_STRING }}
 
       # -------------------------
+      # Publish backend
+      # -------------------------
+      - name: Publish backend
+        run: |
+          dotnet publish `
+            aspnet-core/src/SupportTicketSystem.HttpApi.Host/SupportTicketSystem.HttpApi.Host.csproj `
+            --configuration Release `
+            --output ./publish `
+            --nologo
+
+      # -------------------------
+      # Copy Angular into publish/wwwroot
+      # -------------------------
+      - name: Prepare static frontend files
+        shell: pwsh
+        run: |
+          $frontendDist = "angular/dist/SupportTicketSystem/browser"
+          $publishWwwroot = "publish/wwwroot"
+
+          Write-Host "Angular output: $frontendDist"
+
+          if (!(Test-Path $frontendDist)) {
+            Write-Host "Angular dist contents:"
+            Get-ChildItem "angular/dist" -Recurse |
+              Select-Object FullName
+
+            throw "Angular output directory was not found."
+          }
+
+          New-Item `
+            -ItemType Directory `
+            -Path $publishWwwroot `
+            -Force | Out-Null
+
+          Copy-Item `
+            -Path "$frontendDist/*" `
+            -Destination $publishWwwroot `
+            -Recurse `
+            -Force
+
+          if (!(Test-Path "$publishWwwroot/index.html")) {
+            throw "Angular index.html was not copied to publish/wwwroot."
+          }
+
+          Write-Host "Angular frontend copied successfully."
+
+      # -------------------------
+      # Verify final publish
+      # -------------------------
+      - name: Verify publish folder
+        shell: pwsh
+        run: |
+          Write-Host "========== publish/wwwroot =========="
+
+          Get-ChildItem "publish/wwwroot" |
+            Select-Object Name, Length |
+            Format-Table -AutoSize
+
+          if (!(Test-Path "publish/wwwroot/index.html")) {
+            throw "publish/wwwroot/index.html is missing."
+          }
+
+          if (!(Test-Path "publish/wwwroot/libs")) {
+            throw "publish/wwwroot/libs is missing."
+          }
+
+          Write-Host "Frontend is ready for deployment."
+
+      # -------------------------
+      # Install Web Deploy
+      # -------------------------
+      - name: Install Web Deploy
+        shell: pwsh
+        run: |
+          choco feature enable -n allowGlobalConfirmation
+          choco install webdeploy -y --no-progress
+
+      # -------------------------
       # Deploy
       # -------------------------
-      - name: Publish and Deploy
+      - name: Deploy to MonsterASP
         timeout-minutes: 10
         shell: pwsh
         env:
-          PUBLISH_SERVER: ${{ secrets.PUBLISH_SERVER }}
-          SITE_NAME: ${{ secrets.SITE_NAME }}
-          PUBLISH_USERNAME: ${{ secrets.PUBLISH_USERNAME }}
-          PUBLISH_PASSWORD: ${{ secrets.PUBLISH_PASSWORD }}
+          PUBLISH_URL: ${{ secrets.PUBLISH_SERVER }}
+          MSDEPLOY_SITE: ${{ secrets.SITE_NAME }}
+          USERNAME: ${{ secrets.PUBLISH_USERNAME }}
+          PASSWORD: ${{ secrets.PUBLISH_PASSWORD }}
         run: |
-          dotnet msbuild `
-            "aspnet-core/src/SupportTicketSystem.HttpApi.Host/SupportTicketSystem.HttpApi.Host.csproj" `
-            /t:Build `
-            /p:Configuration=Release `
-            /p:DeployOnBuild=true `
-            /p:WebPublishMethod=MSDeploy `
-            /p:MSDeployServiceUrl="$env:PUBLISH_SERVER" `
-            /p:DeployIisAppPath="$env:SITE_NAME" `
-            /p:UserName="$env:PUBLISH_USERNAME" `
-            /p:Password="$env:PUBLISH_PASSWORD" `
-            /p:AllowUntrustedCertificate=True `
-            /p:MSDeployPublishMethod=WMSVC
+          $msdeploy = Get-Command msdeploy.exe -ErrorAction SilentlyContinue
+
+          if (-not $msdeploy) {
+            $candidates = @(
+              "C:\Program Files\IIS\Microsoft Web Deploy V3\msdeploy.exe",
+              "C:\Program Files (x86)\IIS\Microsoft Web Deploy V3\msdeploy.exe"
+            )
+
+            $msdeploy = $candidates |
+              Where-Object { Test-Path $_ } |
+              Select-Object -First 1
+          }
+
+          if (-not $msdeploy) {
+            throw "msdeploy.exe was not found."
+          }
+
+          $msdeployPath =
+            if ($msdeploy -is [System.Management.Automation.CommandInfo]) {
+              $msdeploy.Source
+            }
+            else {
+              $msdeploy
+            }
+
+          if (
+            [string]::IsNullOrWhiteSpace($env:PUBLISH_URL) -or
+            [string]::IsNullOrWhiteSpace($env:MSDEPLOY_SITE) -or
+            [string]::IsNullOrWhiteSpace($env:USERNAME) -or
+            [string]::IsNullOrWhiteSpace($env:PASSWORD)
+          ) {
+            throw "Missing deployment secrets."
+          }
+
+          $destValue = `
+            "contentPath=$env:MSDEPLOY_SITE," +
+            "computerName=https://$env:PUBLISH_URL/msdeploy.axd?site=$env:MSDEPLOY_SITE," +
+            "userName=$env:USERNAME," +
+            "password=$env:PASSWORD," +
+            "authtype=Basic"
+
+          $psi = New-Object System.Diagnostics.ProcessStartInfo
+
+          $psi.FileName = $msdeployPath
+
+          $psi.ArgumentList.Add("-verb:sync")
+
+          $psi.ArgumentList.Add(
+            "-source:contentPath=$PWD\publish"
+          )
+
+          $psi.ArgumentList.Add(
+            "-dest:$destValue"
+          )
+
+          $psi.ArgumentList.Add("-allowUntrusted")
+          $psi.ArgumentList.Add("-disableLink:AppPoolExtension")
+          $psi.ArgumentList.Add("-disableLink:ContentExtension")
+          $psi.ArgumentList.Add("-enableRule:DoNotDeleteRule")
+          $psi.ArgumentList.Add("-enableRule:AppOffline")
+
+          $psi.UseShellExecute = $false
+          $psi.RedirectStandardOutput = $true
+          $psi.RedirectStandardError = $true
+
+          $process = [System.Diagnostics.Process]::Start($psi)
+
+          $stdout = $process.StandardOutput.ReadToEnd()
+          $stderr = $process.StandardError.ReadToEnd()
+
+          $process.WaitForExit()
+
+          Write-Host $stdout
+
+          if ($stderr) {
+            Write-Host $stderr
+          }
+
+          if ($process.ExitCode -ne 0) {
+            throw "msdeploy failed with exit code $($process.ExitCode)"
+          }
+
+          Write-Host "Deployment completed successfully."
