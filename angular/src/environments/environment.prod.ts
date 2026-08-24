@@ -1,6 +1,6 @@
 import { Environment } from '@abp/ng.core';
 
-const baseUrl = 'https://supportticketsystem.runasp.net';
+const baseUrl = 'http://supportticketsystem.runasp.net';
 
 export const environment = {
   production: true,
@@ -10,16 +10,16 @@ export const environment = {
     logoUrl: '/assets/images/logo/support-ticket-logo.svg',
   },
   oAuthConfig: {
-    issuer: 'https://supportticketsystem.runasp.net/',
+    issuer: 'http://supportticketsystem.runasp.net/',
     redirectUri: baseUrl,
     clientId: 'SupportTicketSystem_App',
     responseType: 'code',
     scope: 'offline_access SupportTicketSystem',
-    requireHttps: true,
+    requireHttps: false,
   },
   apis: {
     default: {
-      url: 'https://supportticketsystem.runasp.net',
+      url: 'http://supportticketsystem.runasp.net',
       rootNamespace: 'SupportTicketSystem',
     },
   },
