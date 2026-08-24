@@ -33,18 +33,66 @@ jobs:
         working-directory: angular
         run: yarn build --configuration production
 
+      - name: Find Angular index.html
+        shell: pwsh
+        run: |
+          Write-Host "Searching for Angular index.html..."
+
+          $index = Get-ChildItem `
+            -Path "angular/dist" `
+            -Filter "index.html" `
+            -Recurse `
+            -File `
+            | Select-Object -First 1
+
+          if ($null -eq $index) {
+            Write-Host "Angular dist contents:"
+            Get-ChildItem -Path "angular/dist" -Recurse | Select-Object FullName
+
+            throw "Angular index.html was not found under angular/dist."
+          }
+
+          Write-Host "Found Angular index.html:"
+          Write-Host $index.FullName
+
+          "ANGULAR_OUTPUT_DIR=$($index.Directory.FullName)" >> $env:GITHUB_ENV
+
       - name: Copy Angular build into backend wwwroot
         shell: pwsh
         run: |
+          $source = $env:ANGULAR_OUTPUT_DIR
           $dest = "aspnet-core/src/SupportTicketSystem.HttpApi.Host/wwwroot"
 
-          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+          Write-Host "Angular source: $source"
+          Write-Host "Backend wwwroot: $dest"
+
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            -Path $dest | Out-Null
 
           Copy-Item `
-            -Path "angular/dist/SupportTicketSystem/browser/*" `
+            -Path "$source/*" `
             -Destination $dest `
             -Recurse `
             -Force
+
+      - name: Verify Angular files
+        shell: pwsh
+        run: |
+          $wwwroot = "aspnet-core/src/SupportTicketSystem.HttpApi.Host/wwwroot"
+
+          if (!(Test-Path "$wwwroot/index.html")) {
+            throw "Angular index.html was not copied to wwwroot."
+          }
+
+          if (!(Test-Path "$wwwroot/libs")) {
+            Write-Host "Warning: wwwroot/libs does not exist yet. ABP install-libs will run next."
+          }
+
+          Write-Host "Angular frontend successfully copied."
+          Write-Host "index.html:"
+          Get-Item "$wwwroot/index.html"
 
       # -------------------------
       # .NET
@@ -89,6 +137,29 @@ jobs:
           if (!(Test-Path "src/SupportTicketSystem.HttpApi.Host/wwwroot/libs")) {
             throw "ABP client-side libraries were not installed."
           }
+
+          Write-Host "ABP client-side libraries installed successfully."
+
+      # -------------------------
+      # Verify complete wwwroot
+      # -------------------------
+      - name: Verify frontend before deployment
+        shell: pwsh
+        run: |
+          $wwwroot = "aspnet-core/src/SupportTicketSystem.HttpApi.Host/wwwroot"
+
+          if (!(Test-Path "$wwwroot/index.html")) {
+            throw "index.html is missing from wwwroot."
+          }
+
+          if (!(Test-Path "$wwwroot/libs")) {
+            throw "libs folder is missing from wwwroot."
+          }
+
+          Write-Host "Frontend deployment files are ready."
+
+          Write-Host "wwwroot contents:"
+          Get-ChildItem $wwwroot | Select-Object Name
 
       # -------------------------
       # Web Deploy
