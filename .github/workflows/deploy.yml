@@ -19,9 +19,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # -------------------------
-      # Setup Node.js
-      # -------------------------
+      # =========================
+      # Node.js / Angular
+      # =========================
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -29,9 +30,6 @@ jobs:
           cache: yarn
           cache-dependency-path: angular/yarn.lock
 
-      # -------------------------
-      # Angular
-      # -------------------------
       - name: Install frontend dependencies
         working-directory: angular
         run: yarn install --frozen-lockfile
@@ -40,17 +38,19 @@ jobs:
         working-directory: angular
         run: yarn build --configuration production
 
-      # -------------------------
-      # Setup .NET
-      # -------------------------
+      # =========================
+      # .NET
+      # =========================
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      # -------------------------
-      # OpenIddict certificate
-      # -------------------------
+      # =========================
+      # OpenIddict Certificate
+      # =========================
+
       - name: Prepare OpenIddict certificate
         shell: pwsh
         env:
@@ -67,9 +67,10 @@ jobs:
             [Convert]::FromBase64String($env:OPENIDDICT_PFX_BASE64)
           )
 
-      # -------------------------
-      # ABP CLI
-      # -------------------------
+      # =========================
+      # ABP
+      # =========================
+
       - name: Install ABP CLI
         run: |
           dotnet tool install --global Volo.Abp.Cli --version 10.6.0
@@ -86,20 +87,24 @@ jobs:
 
           Write-Host "ABP libraries installed successfully."
 
-      # -------------------------
+      # =========================
       # Restore
-      # -------------------------
+      # =========================
+
       - name: Restore Host
         run: |
-          dotnet restore aspnet-core/src/SupportTicketSystem.HttpApi.Host/SupportTicketSystem.HttpApi.Host.csproj
+          dotnet restore `
+            aspnet-core/src/SupportTicketSystem.HttpApi.Host/SupportTicketSystem.HttpApi.Host.csproj
 
       - name: Restore DbMigrator
         run: |
-          dotnet restore aspnet-core/src/SupportTicketSystem.DbMigrator/SupportTicketSystem.DbMigrator.csproj
+          dotnet restore `
+            aspnet-core/src/SupportTicketSystem.DbMigrator/SupportTicketSystem.DbMigrator.csproj
 
-      # -------------------------
-      # Database migration
-      # -------------------------
+      # =========================
+      # Database Migration
+      # =========================
+
       - name: Run database migrations
         run: >
           dotnet run
@@ -109,9 +114,10 @@ jobs:
         env:
           ConnectionStrings__Default: ${{ secrets.PRODUCTION_CONNECTION_STRING }}
 
-      # -------------------------
-      # Publish backend
-      # -------------------------
+      # =========================
+      # Publish Backend
+      # =========================
+
       - name: Publish backend
         run: |
           dotnet publish `
@@ -120,9 +126,10 @@ jobs:
             --output ./publish `
             --nologo
 
-      # -------------------------
-      # Copy Angular into publish/wwwroot
-      # -------------------------
+      # =========================
+      # Copy Angular → publish/wwwroot
+      # =========================
+
       - name: Prepare static frontend files
         shell: pwsh
         run: |
@@ -156,9 +163,10 @@ jobs:
 
           Write-Host "Angular frontend copied successfully."
 
-      # -------------------------
-      # Verify final publish
-      # -------------------------
+      # =========================
+      # Verify Final Publish
+      # =========================
+
       - name: Verify publish folder
         shell: pwsh
         run: |
@@ -178,26 +186,28 @@ jobs:
 
           Write-Host "Frontend and ABP libraries are ready."
 
-      # -------------------------
-      # Install Web Deploy
-      # -------------------------
+      # =========================
+      # Web Deploy
+      # =========================
+
       - name: Install Web Deploy
         shell: pwsh
         run: |
           choco feature enable -n allowGlobalConfirmation
           choco install webdeploy -y --no-progress
 
-      # -------------------------
-      # Deploy
-      # -------------------------
+      # =========================
+      # Deploy to MonsterASP
+      # =========================
+
       - name: Deploy to MonsterASP
         timeout-minutes: 10
         shell: pwsh
         env:
-          PUBLISH_URL: ${{ secrets.PUBLISH_SERVER }}
-          MSDEPLOY_SITE: ${{ secrets.SITE_NAME }}
-          USERNAME: ${{ secrets.PUBLISH_USERNAME }}
-          PASSWORD: ${{ secrets.PUBLISH_PASSWORD }}
+          PUBLISH_SERVER: ${{ secrets.PUBLISH_SERVER }}
+          SITE_NAME: ${{ secrets.SITE_NAME }}
+          PUBLISH_USERNAME: ${{ secrets.PUBLISH_USERNAME }}
+          PUBLISH_PASSWORD: ${{ secrets.PUBLISH_PASSWORD }}
         run: |
           $msdeploy = Get-Command msdeploy.exe -ErrorAction SilentlyContinue
 
@@ -225,19 +235,19 @@ jobs:
             }
 
           if (
-            [string]::IsNullOrWhiteSpace($env:PUBLISH_URL) -or
-            [string]::IsNullOrWhiteSpace($env:MSDEPLOY_SITE) -or
-            [string]::IsNullOrWhiteSpace($env:USERNAME) -or
-            [string]::IsNullOrWhiteSpace($env:PASSWORD)
+            [string]::IsNullOrWhiteSpace($env:PUBLISH_SERVER) -or
+            [string]::IsNullOrWhiteSpace($env:SITE_NAME) -or
+            [string]::IsNullOrWhiteSpace($env:PUBLISH_USERNAME) -or
+            [string]::IsNullOrWhiteSpace($env:PUBLISH_PASSWORD)
           ) {
             throw "Missing deployment secrets."
           }
 
           $destValue = `
-            "contentPath=$env:MSDEPLOY_SITE," +
-            "computerName=https://$env:PUBLISH_URL/msdeploy.axd?site=$env:MSDEPLOY_SITE," +
-            "userName=$env:USERNAME," +
-            "password=$env:PASSWORD," +
+            "contentPath=$env:SITE_NAME," +
+            "computerName=https://$env:PUBLISH_SERVER/msdeploy.axd?site=$env:SITE_NAME," +
+            "userName=$env:PUBLISH_USERNAME," +
+            "password=$env:PUBLISH_PASSWORD," +
             "authtype=Basic"
 
           $psi = New-Object System.Diagnostics.ProcessStartInfo
