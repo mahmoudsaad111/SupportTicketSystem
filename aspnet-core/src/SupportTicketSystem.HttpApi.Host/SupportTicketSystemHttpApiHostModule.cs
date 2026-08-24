@@ -227,10 +227,19 @@ public class SupportTicketSystemHttpApiHostModule : AbpModule
         // endpoint (including .well-known/openid-configuration) to 400,
         // even though every other API call works fine. This must run before
         // anything else in the pipeline reads the request scheme.
-        app.UseForwardedHeaders(new ForwardedHeadersOptions
+        //
+        // KnownNetworks/KnownProxies are cleared because ForwardedHeadersMiddleware
+        // only trusts these headers from a proxy at 127.0.0.1 by default -- on shared
+        // hosting the proxy is on some other internal address we don't control or know,
+        // so the default restriction silently drops the headers unless cleared.
+        var forwardedHeadersOptions = new ForwardedHeadersOptions
         {
             ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
-        });
+        };
+        forwardedHeadersOptions.KnownNetworks.Clear();
+        forwardedHeadersOptions.KnownProxies.Clear();
+
+        app.UseForwardedHeaders(forwardedHeadersOptions);
 
         if (env.IsDevelopment())
         {
@@ -247,6 +256,23 @@ public class SupportTicketSystemHttpApiHostModule : AbpModule
         app.UseCorrelationId();
         app.UseRouting();
         app.MapAbpStaticAssets();
+
+        // ABP's LeptonX Lite theme registers its own default page at "/" that
+        // redirects to Swagger -- meant for host-only deployments where the
+        // Angular app is hosted separately. Since this deployment serves the
+        // Angular build from this same wwwroot, rewrite "/" to "/index.html"
+        // before static files runs, so the SPA's own index.html wins instead
+        // of the theme's default page (which would otherwise match first via
+        // Razor Pages routing inside UseConfiguredEndpoints()).
+        app.Use(async (context, next) =>
+        {
+            if (context.Request.Path == "/" || context.Request.Path == "")
+            {
+                context.Request.Path = "/index.html";
+            }
+            await next();
+        });
+
         app.UseStaticFiles(); // serves wwwroot -- the Angular build output copied in before publish
         app.UseCors();
         app.UseAuthentication();
