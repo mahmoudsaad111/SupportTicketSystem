@@ -112,6 +112,12 @@ jobs:
         env:
           ASPNETCORE_ENVIRONMENT: Production
           ConnectionStrings__Default: ${{ secrets.PRODUCTION_CONNECTION_STRING }}
+          # Without these, the seeder keeps checking the OpenIddict client
+          # against DbMigrator/appsettings.json's committed localhost values
+          # and never updates it to the real production domain -- this is
+          # what caused the 400 after a successful login.
+          OpenIddict__Applications__SupportTicketSystem_App__RootUrl: https://supportticketsystem.runasp.net
+          OpenIddict__Applications__SupportTicketSystem_Swagger__RootUrl: https://supportticketsystem.runasp.net
 
       # ==========================================
       # Publish backend
