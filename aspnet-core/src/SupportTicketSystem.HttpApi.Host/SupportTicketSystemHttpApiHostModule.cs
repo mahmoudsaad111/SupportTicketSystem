@@ -264,16 +264,9 @@ public class SupportTicketSystemHttpApiHostModule : AbpModule
         // before static files runs, so the SPA's own index.html wins instead
         // of the theme's default page (which would otherwise match first via
         // Razor Pages routing inside UseConfiguredEndpoints()).
-        app.Use(async (context, next) =>
-        {
-            if (context.Request.Path == "/" || context.Request.Path == "")
-            {
-                context.Request.Path = "/index.html";
-            }
-            await next();
-        });
+        app.UseDefaultFiles();
+        app.UseStaticFiles();
 
-        app.UseStaticFiles(); // serves wwwroot -- the Angular build output copied in before publish
         app.UseCors();
         app.UseAuthentication();
         app.UseAbpOpenIddictValidation();
@@ -303,9 +296,6 @@ public class SupportTicketSystemHttpApiHostModule : AbpModule
         // SPA fallback -- any request that isn't an API route or a real
         // static file falls back to index.html, so Angular's client-side
         // router can handle it (e.g. a hard refresh on /my-tickets doesn't 404).
-        app.UseEndpoints(endpoints =>
-        {
-            endpoints.MapFallbackToFile("index.html");
-        });
+     
     }
 }
