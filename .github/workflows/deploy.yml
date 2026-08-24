@@ -13,14 +13,14 @@ jobs:
 
     env:
       DOTNET_VERSION: "10.0.x"
-      NODE_VERSION: "20"
+      NODE_VERSION: "24"
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       # -------------------------
-      # Setup Node
+      # Setup Node.js
       # -------------------------
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -30,7 +30,7 @@ jobs:
           cache-dependency-path: angular/yarn.lock
 
       # -------------------------
-      # Build Angular
+      # Angular
       # -------------------------
       - name: Install frontend dependencies
         working-directory: angular
@@ -83,6 +83,8 @@ jobs:
           if (!(Test-Path "src/SupportTicketSystem.HttpApi.Host/wwwroot/libs")) {
             throw "ABP client-side libraries were not installed."
           }
+
+          Write-Host "ABP libraries installed successfully."
 
       # -------------------------
       # Restore
@@ -174,7 +176,7 @@ jobs:
             throw "publish/wwwroot/libs is missing."
           }
 
-          Write-Host "Frontend is ready for deployment."
+          Write-Host "Frontend and ABP libraries are ready."
 
       # -------------------------
       # Install Web Deploy
