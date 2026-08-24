@@ -16,13 +16,15 @@ jobs:
       NODE_VERSION: "24"
 
     steps:
+      # ==========================================
+      # Checkout
+      # ==========================================
       - name: Checkout
         uses: actions/checkout@v4
 
-      # =========================
-      # Node.js / Angular
-      # =========================
-
+      # ==========================================
+      # Node / Angular
+      # ==========================================
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -34,23 +36,21 @@ jobs:
         working-directory: angular
         run: yarn install --frozen-lockfile
 
-      - name: Build frontend
+      - name: Build Angular
         working-directory: angular
         run: yarn build --configuration production
 
-      # =========================
+      # ==========================================
       # .NET
-      # =========================
-
+      # ==========================================
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      # =========================
-      # OpenIddict Certificate
-      # =========================
-
+      # ==========================================
+      # OpenIddict certificate
+      # ==========================================
       - name: Prepare OpenIddict certificate
         shell: pwsh
         env:
@@ -67,10 +67,9 @@ jobs:
             [Convert]::FromBase64String($env:OPENIDDICT_PFX_BASE64)
           )
 
-      # =========================
+      # ==========================================
       # ABP
-      # =========================
-
+      # ==========================================
       - name: Install ABP CLI
         run: |
           dotnet tool install --global Volo.Abp.Cli --version 10.6.0
@@ -82,15 +81,12 @@ jobs:
           abp install-libs
 
           if (!(Test-Path "src/SupportTicketSystem.HttpApi.Host/wwwroot/libs")) {
-            throw "ABP client-side libraries were not installed."
+            throw "ABP libs folder was not created."
           }
 
-          Write-Host "ABP libraries installed successfully."
-
-      # =========================
+      # ==========================================
       # Restore
-      # =========================
-
+      # ==========================================
       - name: Restore Host
         run: |
           dotnet restore `
@@ -101,10 +97,9 @@ jobs:
           dotnet restore `
             aspnet-core/src/SupportTicketSystem.DbMigrator/SupportTicketSystem.DbMigrator.csproj
 
-      # =========================
-      # Database Migration
-      # =========================
-
+      # ==========================================
+      # Database migration
+      # ==========================================
       - name: Run database migrations
         run: >
           dotnet run
@@ -114,10 +109,9 @@ jobs:
         env:
           ConnectionStrings__Default: ${{ secrets.PRODUCTION_CONNECTION_STRING }}
 
-      # =========================
-      # Publish Backend
-      # =========================
-
+      # ==========================================
+      # Publish backend
+      # ==========================================
       - name: Publish backend
         run: |
           dotnet publish `
@@ -126,56 +120,60 @@ jobs:
             --output ./publish `
             --nologo
 
-      # =========================
-      # Copy Angular → publish/wwwroot
-      # =========================
-
-      - name: Prepare static frontend files
+      # ==========================================
+      # Find Angular output
+      # ==========================================
+      - name: Find Angular index.html
         shell: pwsh
         run: |
-          $frontendDist = "angular/dist/SupportTicketSystem/browser"
-          $publishWwwroot = "publish/wwwroot"
+          $index = Get-ChildItem `
+            -Path "angular/dist" `
+            -Filter "index.html" `
+            -Recurse `
+            -File |
+            Select-Object -First 1
 
-          Write-Host "Angular output: $frontendDist"
-
-          if (!(Test-Path $frontendDist)) {
-            Write-Host "Angular dist contents:"
+          if ($null -eq $index) {
             Get-ChildItem "angular/dist" -Recurse |
               Select-Object FullName
 
-            throw "Angular output directory was not found."
+            throw "Angular index.html was not found."
           }
+
+          Write-Host "Angular index found:"
+          Write-Host $index.FullName
+
+          "ANGULAR_OUTPUT_DIR=$($index.Directory.FullName)" >> $env:GITHUB_ENV
+
+      # ==========================================
+      # Copy Angular into publish/wwwroot
+      # ==========================================
+      - name: Copy Angular into publish/wwwroot
+        shell: pwsh
+        run: |
+          $source = $env:ANGULAR_OUTPUT_DIR
+          $destination = "publish/wwwroot"
+
+          Write-Host "Source: $source"
+          Write-Host "Destination: $destination"
 
           New-Item `
             -ItemType Directory `
-            -Path $publishWwwroot `
-            -Force | Out-Null
+            -Force `
+            -Path $destination | Out-Null
 
           Copy-Item `
-            -Path "$frontendDist/*" `
-            -Destination $publishWwwroot `
+            -Path "$source/*" `
+            -Destination $destination `
             -Recurse `
             -Force
 
-          if (!(Test-Path "$publishWwwroot/index.html")) {
-            throw "Angular index.html was not copied to publish/wwwroot."
-          }
-
-          Write-Host "Angular frontend copied successfully."
-
-      # =========================
-      # Verify Final Publish
-      # =========================
-
-      - name: Verify publish folder
+      # ==========================================
+      # Verify final files
+      # ==========================================
+      - name: Verify publish files
         shell: pwsh
         run: |
-          Write-Host "========== publish/wwwroot =========="
-
-          Get-ChildItem "publish/wwwroot" |
-            Select-Object Name, Length |
-            Format-Table -AutoSize
-
           if (!(Test-Path "publish/wwwroot/index.html")) {
             throw "publish/wwwroot/index.html is missing."
           }
@@ -184,27 +182,29 @@ jobs:
             throw "publish/wwwroot/libs is missing."
           }
 
-          Write-Host "Frontend and ABP libraries are ready."
+          Write-Host "======================================"
+          Write-Host "Frontend is ready for deployment"
+          Write-Host "======================================"
 
-      # =========================
-      # Web Deploy
-      # =========================
+          Get-ChildItem "publish/wwwroot" |
+            Select-Object Name
 
+      # ==========================================
+      # Install Web Deploy
+      # ==========================================
       - name: Install Web Deploy
         shell: pwsh
         run: |
           choco feature enable -n allowGlobalConfirmation
           choco install webdeploy -y --no-progress
 
-      # =========================
+      # ==========================================
       # Deploy to MonsterASP
-      # =========================
-
+      # ==========================================
       - name: Deploy to MonsterASP
-        timeout-minutes: 10
+        timeout-minutes: 15
         shell: pwsh
         env:
-          PUBLISH_SERVER: ${{ secrets.PUBLISH_SERVER }}
           SITE_NAME: ${{ secrets.SITE_NAME }}
           PUBLISH_USERNAME: ${{ secrets.PUBLISH_USERNAME }}
           PUBLISH_PASSWORD: ${{ secrets.PUBLISH_PASSWORD }}
@@ -212,63 +212,60 @@ jobs:
           $msdeploy = Get-Command msdeploy.exe -ErrorAction SilentlyContinue
 
           if (-not $msdeploy) {
-            $candidates = @(
+            $paths = @(
               "C:\Program Files\IIS\Microsoft Web Deploy V3\msdeploy.exe",
               "C:\Program Files (x86)\IIS\Microsoft Web Deploy V3\msdeploy.exe"
             )
 
-            $msdeploy = $candidates |
-              Where-Object { Test-Path $_ } |
-              Select-Object -First 1
+            foreach ($path in $paths) {
+              if (Test-Path $path) {
+                $msdeploy = $path
+                break
+              }
+            }
           }
 
           if (-not $msdeploy) {
             throw "msdeploy.exe was not found."
           }
 
-          $msdeployPath =
-            if ($msdeploy -is [System.Management.Automation.CommandInfo]) {
-              $msdeploy.Source
-            }
-            else {
-              $msdeploy
-            }
-
-          if (
-            [string]::IsNullOrWhiteSpace($env:PUBLISH_SERVER) -or
-            [string]::IsNullOrWhiteSpace($env:SITE_NAME) -or
-            [string]::IsNullOrWhiteSpace($env:PUBLISH_USERNAME) -or
-            [string]::IsNullOrWhiteSpace($env:PUBLISH_PASSWORD)
-          ) {
-            throw "Missing deployment secrets."
+          if ($msdeploy -is [System.Management.Automation.CommandInfo]) {
+            $msdeployPath = $msdeploy.Source
+          }
+          else {
+            $msdeployPath = $msdeploy
           }
 
-          $destValue = `
+          # MonsterASP Web Deploy endpoint
+          $serverUrl = "https://$env:SITE_NAME.siteasp.net:8172/msdeploy.axd?site=$env:SITE_NAME"
+
+          Write-Host "Deploying to MonsterASP..."
+          Write-Host "Site: $env:SITE_NAME"
+          Write-Host "Server: https://$env:SITE_NAME.siteasp.net:8172"
+
+          $destination =
             "contentPath=$env:SITE_NAME," +
-            "computerName=https://$env:PUBLISH_SERVER/msdeploy.axd?site=$env:SITE_NAME," +
+            "computerName=$serverUrl," +
             "userName=$env:PUBLISH_USERNAME," +
             "password=$env:PUBLISH_PASSWORD," +
-            "authtype=Basic"
+            "authtype=Basic," +
+            "includeAcls=False"
 
           $psi = New-Object System.Diagnostics.ProcessStartInfo
 
           $psi.FileName = $msdeployPath
 
           $psi.ArgumentList.Add("-verb:sync")
-
-          $psi.ArgumentList.Add(
-            "-source:contentPath=$PWD\publish"
-          )
-
-          $psi.ArgumentList.Add(
-            "-dest:$destValue"
-          )
+          $psi.ArgumentList.Add("-source:contentPath=$PWD\publish")
+          $psi.ArgumentList.Add("-dest:$destination")
 
           $psi.ArgumentList.Add("-allowUntrusted")
           $psi.ArgumentList.Add("-disableLink:AppPoolExtension")
           $psi.ArgumentList.Add("-disableLink:ContentExtension")
+          $psi.ArgumentList.Add("-disableLink:CertificateExtension")
           $psi.ArgumentList.Add("-enableRule:DoNotDeleteRule")
           $psi.ArgumentList.Add("-enableRule:AppOffline")
+          $psi.ArgumentList.Add("-verbose")
 
           $psi.UseShellExecute = $false
           $psi.RedirectStandardOutput = $true
@@ -288,7 +285,9 @@ jobs:
           }
 
           if ($process.ExitCode -ne 0) {
-            throw "msdeploy failed with exit code $($process.ExitCode)"
+            throw "MonsterASP deployment failed. Exit code: $($process.ExitCode)"
           }
 
-          Write-Host "Deployment completed successfully."
+          Write-Host "======================================"
+          Write-Host "DEPLOYMENT SUCCESSFUL"
+          Write-Host "======================================"
