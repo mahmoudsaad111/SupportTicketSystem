@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Cors;
 using Microsoft.AspNetCore.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -217,6 +218,19 @@ public class SupportTicketSystemHttpApiHostModule : AbpModule
     {
         var app = context.GetApplicationBuilder();
         var env = context.GetEnvironment();
+
+        // MonsterASP (and most shared/Windows IIS hosts) terminate SSL at the
+        // proxy, then forward the request to this app internally over plain
+        // HTTP. Without this, HttpContext.Request.IsHttps is false even when
+        // the browser connected over real HTTPS -- and OpenIddict's transport
+        // security check strictly requires IsHttps, causing every OIDC
+        // endpoint (including .well-known/openid-configuration) to 400,
+        // even though every other API call works fine. This must run before
+        // anything else in the pipeline reads the request scheme.
+        app.UseForwardedHeaders(new ForwardedHeadersOptions
+        {
+            ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+        });
 
         if (env.IsDevelopment())
         {
