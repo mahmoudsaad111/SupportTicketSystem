@@ -32,6 +32,9 @@ jobs:
           cache: yarn
           cache-dependency-path: angular/yarn.lock
 
+      - name: Verify Node version
+        run: node --version
+
       - name: Install frontend dependencies
         working-directory: angular
         run: yarn install --frozen-lockfile
@@ -109,10 +112,6 @@ jobs:
         env:
           ASPNETCORE_ENVIRONMENT: Production
           ConnectionStrings__Default: ${{ secrets.PRODUCTION_CONNECTION_STRING }}
-          OpenIddict__Applications__SupportTicketSystem_App__ClientId: SupportTicketSystem_App
-          OpenIddict__Applications__SupportTicketSystem_App__RootUrl: https://supportticketsystem.runasp.net
-          OpenIddict__Applications__SupportTicketSystem_Swagger__ClientId: SupportTicketSystem_Swagger
-          OpenIddict__Applications__SupportTicketSystem_Swagger__RootUrl: https://supportticketsystem.runasp.net
 
       # ==========================================
       # Publish backend
@@ -122,28 +121,32 @@ jobs:
           dotnet publish `
             aspnet-core/src/SupportTicketSystem.HttpApi.Host/SupportTicketSystem.HttpApi.Host.csproj `
             --configuration Release `
-            --output ./publish `
+            --output "$PWD/publish" `
             --nologo
 
       # ==========================================
-      # Find Angular output
+      # Find Angular index.html
       # ==========================================
-      - name: Find Angular index.html
+      - name: Find Angular output
         shell: pwsh
         run: |
-          $index = Get-ChildItem `
+          Write-Host "Searching Angular output..."
+
+          $indexes = Get-ChildItem `
             -Path "angular/dist" `
             -Filter "index.html" `
             -Recurse `
-            -File |
-            Select-Object -First 1
+            -File
 
-          if ($null -eq $index) {
+          if ($indexes.Count -eq 0) {
+            Write-Host "Angular dist contents:"
             Get-ChildItem "angular/dist" -Recurse |
               Select-Object FullName
 
             throw "Angular index.html was not found."
           }
+
+          $index = $indexes | Select-Object -First 1
 
           Write-Host "Angular index found:"
           Write-Host $index.FullName
@@ -151,16 +154,19 @@ jobs:
           "ANGULAR_OUTPUT_DIR=$($index.Directory.FullName)" >> $env:GITHUB_ENV
 
       # ==========================================
-      # Copy Angular into publish/wwwroot
+      # Copy Angular into PUBLISHED wwwroot
       # ==========================================
       - name: Copy Angular into publish/wwwroot
         shell: pwsh
         run: |
           $source = $env:ANGULAR_OUTPUT_DIR
-          $destination = "publish/wwwroot"
+          $destination = Join-Path $PWD "publish/wwwroot"
 
-          Write-Host "Source: $source"
-          Write-Host "Destination: $destination"
+          Write-Host "Angular source:"
+          Write-Host $source
+
+          Write-Host "Publish wwwroot:"
+          Write-Host $destination
 
           New-Item `
             -ItemType Directory `
@@ -168,31 +174,54 @@ jobs:
             -Path $destination | Out-Null
 
           Copy-Item `
-            -Path "$source/*" `
+            -Path (Join-Path $source "*") `
             -Destination $destination `
             -Recurse `
             -Force
 
       # ==========================================
-      # Verify final files
+      # Verify FINAL publish structure
       # ==========================================
-      - name: Verify publish files
+      - name: Verify published application
         shell: pwsh
         run: |
-          if (!(Test-Path "publish/wwwroot/index.html")) {
-            throw "publish/wwwroot/index.html is missing."
-          }
-
-          if (!(Test-Path "publish/wwwroot/libs")) {
-            throw "publish/wwwroot/libs is missing."
-          }
+          $publish = Join-Path $PWD "publish"
+          $wwwroot = Join-Path $publish "wwwroot"
 
           Write-Host "======================================"
-          Write-Host "Frontend is ready for deployment"
+          Write-Host "FINAL PUBLISH STRUCTURE"
           Write-Host "======================================"
 
-          Get-ChildItem "publish/wwwroot" |
+          if (!(Test-Path $publish)) {
+            throw "publish directory does not exist."
+          }
+
+          if (!(Test-Path $wwwroot)) {
+            throw "publish/wwwroot does not exist."
+          }
+
+          if (!(Test-Path (Join-Path $wwwroot "index.html"))) {
+            Write-Host "wwwroot contents:"
+            Get-ChildItem $wwwroot -Recurse |
+              Select-Object FullName
+
+            throw "Angular index.html is missing from publish/wwwroot."
+          }
+
+          if (!(Test-Path (Join-Path $wwwroot "libs"))) {
+            throw "ABP libs folder is missing from publish/wwwroot."
+          }
+
+          Write-Host "Angular index.html:"
+          Get-Item (Join-Path $wwwroot "index.html")
+
+          Write-Host ""
+          Write-Host "publish/wwwroot contents:"
+          Get-ChildItem $wwwroot |
             Select-Object Name
+
+          Write-Host ""
+          Write-Host "Frontend is READY."
 
       # ==========================================
       # Install Web Deploy
@@ -204,12 +233,13 @@ jobs:
           choco install webdeploy -y --no-progress
 
       # ==========================================
-      # Deploy to MonsterASP
+      # Deploy
       # ==========================================
       - name: Deploy to MonsterASP
         timeout-minutes: 15
         shell: pwsh
         env:
+          PUBLISH_SERVER: ${{ secrets.PUBLISH_SERVER }}
           SITE_NAME: ${{ secrets.SITE_NAME }}
           PUBLISH_USERNAME: ${{ secrets.PUBLISH_USERNAME }}
           PUBLISH_PASSWORD: ${{ secrets.PUBLISH_PASSWORD }}
@@ -241,40 +271,67 @@ jobs:
             $msdeployPath = $msdeploy
           }
 
-          # MonsterASP Web Deploy endpoint
-          $serverUrl = "https://$env:SITE_NAME.siteasp.net:8172/msdeploy.axd?site=$env:SITE_NAME"
+          if ([string]::IsNullOrWhiteSpace($env:PUBLISH_SERVER)) {
+            throw "PUBLISH_SERVER is missing."
+          }
 
-          Write-Host "Deploying to MonsterASP..."
+          if ([string]::IsNullOrWhiteSpace($env:SITE_NAME)) {
+            throw "SITE_NAME is missing."
+          }
+
+          if ([string]::IsNullOrWhiteSpace($env:PUBLISH_USERNAME)) {
+            throw "PUBLISH_USERNAME is missing."
+          }
+
+          if ([string]::IsNullOrWhiteSpace($env:PUBLISH_PASSWORD)) {
+            throw "PUBLISH_PASSWORD is missing."
+          }
+
+          Write-Host "======================================"
+          Write-Host "DEPLOYING TO MONSTERASP"
+          Write-Host "======================================"
+
+          Write-Host "Publish server: $env:PUBLISH_SERVER"
           Write-Host "Site: $env:SITE_NAME"
-          Write-Host "Server: https://$env:SITE_NAME.siteasp.net:8172"
+
+          # PUBLISH_SERVER must contain the Web Deploy host
+          # from the MonsterASP publish profile, e.g.
+          # site87155.siteasp.net
+          #
+          # Do NOT add the site name to the hostname here.
+
+          $serverUrl = "https://$($env:PUBLISH_SERVER):8172/msdeploy.axd?site=$($env:SITE_NAME)"
 
           $destination =
-            "contentPath=$env:SITE_NAME," +
+            "contentPath=$($env:SITE_NAME)," +
             "computerName=$serverUrl," +
-            "userName=$env:PUBLISH_USERNAME," +
-            "password=$env:PUBLISH_PASSWORD," +
-            "authtype=Basic," +
-            "includeAcls=False"
+            "userName=$($env:PUBLISH_USERNAME)," +
+            "password=$($env:PUBLISH_PASSWORD)," +
+            "authtype=Basic"
+
+          $sourcePath = Join-Path $PWD "publish"
+
+          Write-Host "Source: $sourcePath"
+          Write-Host "Destination site: $env:SITE_NAME"
 
           $psi = New-Object System.Diagnostics.ProcessStartInfo
 
           $psi.FileName = $msdeployPath
 
           $psi.ArgumentList.Add("-verb:sync")
-          $psi.ArgumentList.Add("-source:contentPath=$PWD\publish")
+          $psi.ArgumentList.Add("-source:contentPath=$sourcePath")
           $psi.ArgumentList.Add("-dest:$destination")
-
           $psi.ArgumentList.Add("-allowUntrusted")
           $psi.ArgumentList.Add("-disableLink:AppPoolExtension")
           $psi.ArgumentList.Add("-disableLink:ContentExtension")
           $psi.ArgumentList.Add("-disableLink:CertificateExtension")
           $psi.ArgumentList.Add("-enableRule:DoNotDeleteRule")
           $psi.ArgumentList.Add("-enableRule:AppOffline")
-          $psi.ArgumentList.Add("-verbose")
 
           $psi.UseShellExecute = $false
           $psi.RedirectStandardOutput = $true
           $psi.RedirectStandardError = $true
+          $psi.CreateNoWindow = $true
 
           $process = [System.Diagnostics.Process]::Start($psi)
 
