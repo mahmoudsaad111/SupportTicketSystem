@@ -57,6 +57,14 @@ jobs:
       - name: Restore
         run: dotnet restore aspnet-core/src/SupportTicketSystem.HttpApi.Host/SupportTicketSystem.HttpApi.Host.csproj
 
+      - name: Restore database migrator
+        run: dotnet restore aspnet-core/src/SupportTicketSystem.DbMigrator/SupportTicketSystem.DbMigrator.csproj
+
+      - name: Run database migrations
+        run: dotnet run --project aspnet-core/src/SupportTicketSystem.DbMigrator/SupportTicketSystem.DbMigrator.csproj --configuration Release --no-restore
+        env:
+          ConnectionStrings__Default: ${{ secrets.PRODUCTION_CONNECTION_STRING }}
+
       # Single site now — only one set of publish credentials needed, from
       # the ONE .PublishSettings file MonsterASP.NET gives you for this site
       # (Control Panel -> your site -> "Get Publish Profile" / Web Deploy):
