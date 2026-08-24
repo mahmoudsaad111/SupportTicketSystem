@@ -211,6 +211,7 @@ public class SupportTicketSystemHttpApiHostModule : AbpModule
         app.UseCorrelationId();
         app.UseRouting();
         app.MapAbpStaticAssets();
+        app.UseStaticFiles(); // serves wwwroot -- the Angular build output copied in before publish
         app.UseCors();
         app.UseAuthentication();
         app.UseAbpOpenIddictValidation();
@@ -236,5 +237,13 @@ public class SupportTicketSystemHttpApiHostModule : AbpModule
         app.UseAuditing();
         app.UseAbpSerilogEnrichers();
         app.UseConfiguredEndpoints();
+
+        // SPA fallback -- any request that isn't an API route or a real
+        // static file falls back to index.html, so Angular's client-side
+        // router can handle it (e.g. a hard refresh on /my-tickets doesn't 404).
+        app.UseEndpoints(endpoints =>
+        {
+            endpoints.MapFallbackToFile("index.html");
+        });
     }
 }

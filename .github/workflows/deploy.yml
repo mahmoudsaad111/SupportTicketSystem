@@ -1,15 +1,37 @@
 name: Build and Deploy to MonsterASP.NET
 
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch:
 
 jobs:
-  deploy-backend:
+  deploy:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
+      # Build Angular first, then copy its output into the backend's
+      # wwwroot so it gets published together with the API as one site.
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'yarn'
+          cache-dependency-path: angular/yarn.lock
+
+      - name: Install frontend dependencies
+        working-directory: angular
+        run: yarn install --frozen-lockfile
+
+      - name: Build Angular (production)
+        working-directory: angular
+        run: yarn build --configuration production
+
+      - name: Copy Angular build into backend wwwroot
+        shell: pwsh
+        run: |
+          $dest = "aspnet-core/src/SupportTicketSystem.HttpApi.Host/wwwroot"
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+          Copy-Item -Path "angular/dist/SupportTicketSystem/browser/*" -Destination $dest -Recurse -Force
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -25,77 +47,30 @@ jobs:
       - name: Restore
         run: dotnet restore aspnet-core/src/SupportTicketSystem.HttpApi.Host/SupportTicketSystem.HttpApi.Host.csproj
 
-      # These four secrets come from the .PublishSettings file MonsterASP.NET
-      # gives you for the backend hosting slot (Control Panel -> your site ->
-      # "Get Publish Profile" / Web Deploy credentials):
-      #   BACKEND_PUBLISH_SERVER   -> the publishUrl / MSDeploy server address
-      #                              (e.g. yourserver.monsterasp.net:8172)
-      #   BACKEND_SITE_NAME        -> the msdeploySite / IIS site name
-      #   BACKEND_PUBLISH_USERNAME -> userName
-      #   BACKEND_PUBLISH_PASSWORD -> userPWD
+      # Single site now — only one set of publish credentials needed, from
+      # the ONE .PublishSettings file MonsterASP.NET gives you for this site
+      # (Control Panel -> your site -> "Get Publish Profile" / Web Deploy):
+      #   PUBLISH_SERVER   -> publishUrl (e.g. yourserver.monsterasp.net:8172)
+      #   SITE_NAME        -> msdeploySite
+      #   PUBLISH_USERNAME -> userName
+      #   PUBLISH_PASSWORD -> userPWD
       # Add all four under Repo Settings -> Secrets and variables -> Actions.
       #
-      # NOTE: this deliberately uses `dotnet msbuild ... /t:Publish` rather
-      # than `dotnet publish`. The `dotnet publish` CLI command invokes the
-      # MSBuild target graph in a different order than plain MSBuild does,
-      # which triggers a known circular-dependency error (MSB4006, involving
-      # _CopyAspNetCoreFilesToIntermediateOutputPath) specifically when
-      # WebPublishMethod=MSDeploy is set. `dotnet msbuild /t:Publish` invokes
-      # the exact same target chain Visual Studio's own "Publish" button
-      # uses, which doesn't hit this issue.
-      - name: Publish & deploy backend via Web Deploy
+      # Uses `dotnet msbuild ... /t:Build` (not /t:Publish) with
+      # DeployOnBuild=true — targeting Publish directly on top of
+      # DeployOnBuild causes a known MSB4006 circular-dependency error in
+      # the Sdk.Publish targets; Build + DeployOnBuild is the correct,
+      # working combination (same one Visual Studio's own Publish uses).
+      - name: Publish & deploy via Web Deploy
         run: |
           dotnet msbuild aspnet-core/src/SupportTicketSystem.HttpApi.Host/SupportTicketSystem.HttpApi.Host.csproj `
-            /t:Publish `
+            /t:Build `
             /p:Configuration=Release `
             /p:DeployOnBuild=true `
             /p:WebPublishMethod=MSDeploy `
-            /p:MSDeployServiceUrl="${{ secrets.BACKEND_PUBLISH_SERVER }}" `
-            /p:DeployIisAppPath="${{ secrets.BACKEND_SITE_NAME }}" `
-            /p:UserName="${{ secrets.BACKEND_PUBLISH_USERNAME }}" `
-            /p:Password="${{ secrets.BACKEND_PUBLISH_PASSWORD }}" `
+            /p:MSDeployServiceUrl="${{ secrets.PUBLISH_SERVER }}" `
+            /p:DeployIisAppPath="${{ secrets.SITE_NAME }}" `
+            /p:UserName="${{ secrets.PUBLISH_USERNAME }}" `
+            /p:Password="${{ secrets.PUBLISH_PASSWORD }}" `
             /p:AllowUntrustedCertificate=true `
             /p:MSDeployPublishMethod=WMSVC
-
-  deploy-frontend:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'yarn'
-          cache-dependency-path: angular/yarn.lock
-
-      - name: Install dependencies
-        working-directory: angular
-        run: yarn install --frozen-lockfile
-
-      - name: Build Angular (production)
-        working-directory: angular
-        run: yarn build --configuration production
-
-      - name: Install Web Deploy
-        run: choco install webdeploy -y
-
-      # Angular isn't a .NET project, so there's no MSBuild publish pipeline
-      # to hook into -- this calls msdeploy.exe directly to sync the built
-      # static files (dist/SupportTicketSystem/browser) up to the frontend
-      # hosting slot's IIS site, the same way the backend job does it via
-      # MSBuild above.
-      #
-      # Same four secrets as the backend job, but for the FRONTEND hosting
-      # slot's own .PublishSettings (a separate site = separate credentials):
-      #   FRONTEND_PUBLISH_SERVER, FRONTEND_SITE_NAME,
-      #   FRONTEND_PUBLISH_USERNAME, FRONTEND_PUBLISH_PASSWORD
-      - name: Deploy frontend via Web Deploy
-        shell: pwsh
-        run: |
-          $msdeploy = "$env:ProgramFiles\IIS\Microsoft Web Deploy V3\msdeploy.exe"
-          & $msdeploy `
-            -verb:sync `
-            -source:contentPath="angular/dist/SupportTicketSystem/browser" `
-            -dest:contentPath="${{ secrets.FRONTEND_SITE_NAME }}",computerName="https://${{ secrets.FRONTEND_PUBLISH_SERVER }}/msdeploy.axd?site=${{ secrets.FRONTEND_SITE_NAME }}",userName="${{ secrets.FRONTEND_PUBLISH_USERNAME }}",password="${{ secrets.FRONTEND_PUBLISH_PASSWORD }}",authType="Basic" `
-            -allowUntrusted
