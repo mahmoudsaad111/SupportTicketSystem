@@ -17,8 +17,8 @@ jobs:
           dotnet-version: '10.0.x'
 
       # GitHub's windows-latest runner doesn't ship Web Deploy by default —
-      # install it explicitly so `dotnet publish` can actually push content
-      # over MSDeploy/WMSVC to the shared host.
+      # install it explicitly so MSBuild can actually push content over
+      # MSDeploy/WMSVC to the shared host.
       - name: Install Web Deploy
         run: choco install webdeploy -y
 
@@ -34,18 +34,28 @@ jobs:
       #   BACKEND_PUBLISH_USERNAME -> userName
       #   BACKEND_PUBLISH_PASSWORD -> userPWD
       # Add all four under Repo Settings -> Secrets and variables -> Actions.
+      #
+      # NOTE: this deliberately uses `dotnet msbuild ... /t:Publish` rather
+      # than `dotnet publish`. The `dotnet publish` CLI command invokes the
+      # MSBuild target graph in a different order than plain MSBuild does,
+      # which triggers a known circular-dependency error (MSB4006, involving
+      # _CopyAspNetCoreFilesToIntermediateOutputPath) specifically when
+      # WebPublishMethod=MSDeploy is set. `dotnet msbuild /t:Publish` invokes
+      # the exact same target chain Visual Studio's own "Publish" button
+      # uses, which doesn't hit this issue.
       - name: Publish & deploy backend via Web Deploy
         run: |
-          dotnet publish aspnet-core/src/SupportTicketSystem.HttpApi.Host/SupportTicketSystem.HttpApi.Host.csproj `
-            -c Release `
-            -p:DeployOnBuild=true `
-            -p:WebPublishMethod=MSDeploy `
-            -p:MSDeployServiceUrl="${{ secrets.BACKEND_PUBLISH_SERVER }}" `
-            -p:DeployIisAppPath="${{ secrets.BACKEND_SITE_NAME }}" `
-            -p:UserName="${{ secrets.BACKEND_PUBLISH_USERNAME }}" `
-            -p:Password="${{ secrets.BACKEND_PUBLISH_PASSWORD }}" `
-            -p:AllowUntrustedCertificate=true `
-            -p:MSDeployPublishMethod=WMSVC
+          dotnet msbuild aspnet-core/src/SupportTicketSystem.HttpApi.Host/SupportTicketSystem.HttpApi.Host.csproj `
+            /t:Publish `
+            /p:Configuration=Release `
+            /p:DeployOnBuild=true `
+            /p:WebPublishMethod=MSDeploy `
+            /p:MSDeployServiceUrl="${{ secrets.BACKEND_PUBLISH_SERVER }}" `
+            /p:DeployIisAppPath="${{ secrets.BACKEND_SITE_NAME }}" `
+            /p:UserName="${{ secrets.BACKEND_PUBLISH_USERNAME }}" `
+            /p:Password="${{ secrets.BACKEND_PUBLISH_PASSWORD }}" `
+            /p:AllowUntrustedCertificate=true `
+            /p:MSDeployPublishMethod=WMSVC
 
   deploy-frontend:
     runs-on: windows-latest
@@ -70,11 +80,11 @@ jobs:
       - name: Install Web Deploy
         run: choco install webdeploy -y
 
-      # Angular isn't a .NET project, so there's no `dotnet publish` pipeline
+      # Angular isn't a .NET project, so there's no MSBuild publish pipeline
       # to hook into -- this calls msdeploy.exe directly to sync the built
       # static files (dist/SupportTicketSystem/browser) up to the frontend
-      # hosting slot's IIS site, the same way `dotnet publish` does it under
-      # the hood for the backend job above.
+      # hosting slot's IIS site, the same way the backend job does it via
+      # MSBuild above.
       #
       # Same four secrets as the backend job, but for the FRONTEND hosting
       # slot's own .PublishSettings (a separate site = separate credentials):
