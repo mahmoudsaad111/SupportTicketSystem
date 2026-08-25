@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Cors;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Configuration;
@@ -90,6 +91,7 @@ public class SupportTicketSystemHttpApiHostModule : AbpModule
         var hostingEnvironment = context.Services.GetHostingEnvironment();
 
         ConfigureAuthentication(context);
+        ConfigureDataProtection(context, hostingEnvironment);
         ConfigureBundles();
         ConfigureUrls(configuration);
         ConfigureConventionalControllers();
@@ -111,6 +113,28 @@ public class SupportTicketSystemHttpApiHostModule : AbpModule
         {
             options.IsDynamicClaimsEnabled = true;
         });
+    }
+
+    // ASP.NET Core's Data Protection API encrypts the antiforgery cookie and
+    // the login (Identity.Application) cookie -- this is a SEPARATE system
+    // from OpenIddict's own certificate (already configured above via
+    // AddProductionEncryptionAndSigningCertificate). Without this, keys are
+    // kept in a non-durable location that doesn't reliably survive an app
+    // pool recycle on shared hosting -- so a cookie/token encrypted by one
+    // process can no longer be decrypted by whichever process serves the
+    // next request, surfacing as "AntiforgeryValidationException: The
+    // antiforgery token could not be decrypted" / "Unprotect ticket failed"
+    // exactly like what showed up in the production logs. Persisting keys
+    // to a folder on disk (outside wwwroot, so it's never served over HTTP,
+    // and outside the published bundle, so a redeploy doesn't wipe it)
+    // fixes this.
+    private void ConfigureDataProtection(ServiceConfigurationContext context, Microsoft.AspNetCore.Hosting.IWebHostEnvironment hostingEnvironment)
+    {
+        var keysFolder = Path.Combine(hostingEnvironment.ContentRootPath, "App_Data", "DataProtection-Keys");
+
+        context.Services.AddDataProtection()
+            .SetApplicationName("SupportTicketSystem")
+            .PersistKeysToFileSystem(new DirectoryInfo(keysFolder));
     }
 
     private void ConfigureBundles()
@@ -296,6 +320,9 @@ public class SupportTicketSystemHttpApiHostModule : AbpModule
         // SPA fallback -- any request that isn't an API route or a real
         // static file falls back to index.html, so Angular's client-side
         // router can handle it (e.g. a hard refresh on /my-tickets doesn't 404).
-     
+        app.UseEndpoints(endpoints =>
+        {
+            endpoints.MapFallbackToFile("index.html");
+        });
     }
 }

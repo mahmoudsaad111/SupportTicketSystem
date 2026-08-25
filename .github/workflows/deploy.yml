@@ -131,6 +131,39 @@ jobs:
             --nologo
 
       # ==========================================
+      # Production secrets
+      # ==========================================
+      # appsettings.secrets.json is gitignored -- it never exists in this
+      # checkout at all, so it can't be part of the publish output no matter
+      # what MSBuild's content-inclusion rules say. The deployed app reads it
+      # via ABP's AddAppSettingsSecretsJson() (see Program.cs), so we write it
+      # directly into ./publish here, from the SAME secret already used for
+      # the DbMigrator step above. That earlier env var only affected the
+      # DbMigrator process during CI -- it never reached the actual deployed
+      # SupportTicketSystem.HttpApi.Host.dll running on MonsterASP, which is
+      # why the live app was still falling back to appsettings.json's local
+      # dev connection string (MAHMOUD\SQLEXPRESS) and timing out.
+      - name: Write production secrets
+        shell: pwsh
+        env:
+          CONNECTION_STRING: ${{ secrets.PRODUCTION_CONNECTION_STRING }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:CONNECTION_STRING)) {
+            throw "Missing PRODUCTION_CONNECTION_STRING secret."
+          }
+
+          $secrets = @{
+            ConnectionStrings = @{
+              Default = $env:CONNECTION_STRING
+            }
+          } | ConvertTo-Json -Depth 5
+
+          $secretsPath = Join-Path $PWD "publish/appsettings.secrets.json"
+          Set-Content -Path $secretsPath -Value $secrets -Encoding UTF8
+
+          Write-Host "Wrote production appsettings.secrets.json to $secretsPath"
+
+      # ==========================================
       # Find Angular index.html
       # ==========================================
       - name: Find Angular output
