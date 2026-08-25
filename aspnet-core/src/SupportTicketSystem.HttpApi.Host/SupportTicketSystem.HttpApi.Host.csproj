@@ -38,7 +38,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="openiddict.pfx" CopyToPublishDirectory="Always" />
+    <!-- Only required on CI, where a workflow step writes this file from a
+         GitHub secret immediately before publish. Conditioned on Exists()
+         so local builds (including docker-compose, which runs this backend
+         in Development mode and never needs the file at all) don't fail
+         trying to copy something that was never meant to be here locally. -->
+    <None Include="openiddict.pfx" CopyToPublishDirectory="Always" Condition="Exists('openiddict.pfx')" />
   </ItemGroup>
 
 </Project>

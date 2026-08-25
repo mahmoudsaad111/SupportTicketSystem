@@ -56,7 +56,21 @@ public class SupportTicketSystemHttpApiHostModule : AbpModule
     {
         var hostingEnvironment = context.Services.GetHostingEnvironment();
 
-        if (!hostingEnvironment.IsDevelopment())
+        // Gated on the certificate file actually existing on disk, not just
+        // on the environment name. openiddict.pfx only exists on the CI
+        // runner (written from a secret right before publish); local Docker
+        // builds never have it. Checking Exists() here -- rather than
+        // forcing ASPNETCORE_ENVIRONMENT=Development to skip this block --
+        // means we don't have to also flip on IsDevelopment()-gated code
+        // elsewhere (see ConfigureVirtualFileSystem below) that assumes the
+        // raw source project folders sit next to the build output, which is
+        // never true inside a container and crashes startup with
+        // DirectoryNotFoundException. When the file is missing, ABP falls
+        // back to AddDevelopmentEncryptionAndSigningCertificate (the
+        // default, ephemeral dev cert) automatically -- no extra code needed.
+        var openIddictPfxPath = Path.Combine(hostingEnvironment.ContentRootPath, "openiddict.pfx");
+
+        if (!hostingEnvironment.IsDevelopment() && File.Exists(openIddictPfxPath))
         {
             var configuration = context.Services.GetConfiguration();
 
@@ -68,7 +82,7 @@ public class SupportTicketSystemHttpApiHostModule : AbpModule
             PreConfigure<OpenIddictServerBuilder>(serverBuilder =>
             {
                 serverBuilder.AddProductionEncryptionAndSigningCertificate(
-                    Path.Combine(hostingEnvironment.ContentRootPath, "openiddict.pfx"),
+                    openIddictPfxPath,
                     configuration["AuthServer:CertificatePassPhrase"],
                     X509KeyStorageFlags.MachineKeySet | X509KeyStorageFlags.EphemeralKeySet);
             });

@@ -41,6 +41,21 @@ services:
       dockerfile: src/SupportTicketSystem.HttpApi.Host/Dockerfile
     container_name: supportticketsystem-backend
     environment:
+      # appsettings.Production.json hardcodes these to the live cloud domain
+      # (correct for the real MonsterASP deployment, which also runs in
+      # Production). Since this container runs in Production too (needed to
+      # avoid the DirectoryNotFoundException crash -- see
+      # SupportTicketSystemHttpApiHostModule.cs), that same file loads here
+      # and silently overrides these for local testing too unless we
+      # override them back. Env vars always win over any appsettings.*.json
+      # file, so this doesn't require touching appsettings.Production.json
+      # itself -- the real cloud deployment is unaffected either way.
+      App__SelfUrl: https://localhost:44376
+      App__ClientUrl: http://localhost:4200
+      App__CorsOrigins: http://localhost:4200
+      App__RedirectAllowedUrls: http://localhost:4200
+      AuthServer__Authority: https://localhost:44376
+      AuthServer__RequireHttpsMetadata: "false"
       ConnectionStrings__Default: "Server=sqlserver;Database=SupportTicketSystemDb;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=true"
       ASPNETCORE_Kestrel__Certificates__Default__Path: /https/aspnetapp.pfx
       ASPNETCORE_Kestrel__Certificates__Default__Password: ${CERT_PASSWORD}

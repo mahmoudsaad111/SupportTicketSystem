@@ -41,7 +41,7 @@ jobs:
 
       - name: Build Angular
         working-directory: angular
-        run: yarn build --configuration production
+        run: yarn build --configuration cloud
 
       # ==========================================
       # .NET

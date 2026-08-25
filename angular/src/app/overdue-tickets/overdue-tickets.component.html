@@ -4,6 +4,13 @@
       <h1 class="overdue-page__title">Overdue Tickets</h1>
       <p class="overdue-page__subtitle">{{ tickets.length }} ticket{{ tickets.length === 1 ? '' : 's' }} past their SLA deadline</p>
     </div>
+    @if (tickets.length > 0) {
+      <div class="overdue-page__header-actions">
+        <button type="button" class="btn btn--ghost" [disabled]="exporting" (click)="exportCsv()">
+          <i class="bi bi-download"></i> {{ exporting ? 'Exporting…' : 'Export CSV' }}
+        </button>
+      </div>
+    }
   </header>
 
   @if (loading) {

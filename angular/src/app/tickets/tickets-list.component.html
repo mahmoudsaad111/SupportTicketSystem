@@ -4,11 +4,16 @@
       <h1 class="tickets-page__title">All Tickets</h1>
       <p class="tickets-page__subtitle">{{ totalCount }} ticket{{ totalCount === 1 ? '' : 's' }} total</p>
     </div>
-    @if (canCreateTicket) {
-      <button type="button" class="btn btn--primary" (click)="openCreate()">
-        <i class="bi bi-plus-lg"></i> New Ticket
+    <div class="tickets-page__header-actions">
+      <button type="button" class="btn btn--ghost" [disabled]="exporting" (click)="exportCsv()">
+        <i class="bi bi-download"></i> {{ exporting ? 'Exporting…' : 'Export CSV' }}
       </button>
-    }
+      @if (canCreateTicket) {
+        <button type="button" class="btn btn--primary" (click)="openCreate()">
+          <i class="bi bi-plus-lg"></i> New Ticket
+        </button>
+      }
+    </div>
   </header>
 
   <div class="filter-bar">

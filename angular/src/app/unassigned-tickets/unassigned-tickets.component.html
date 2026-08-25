@@ -6,6 +6,13 @@
         {{ unassignedTickets.length }} unassigned ticket{{ unassignedTickets.length === 1 ? '' : 's' }}
       </p>
     </div>
+    @if (unassignedTickets.length > 0) {
+      <div class="unassigned-page__header-actions">
+        <button type="button" class="btn btn--ghost" [disabled]="exporting" (click)="exportCsv()">
+          <i class="bi bi-download"></i> {{ exporting ? 'Exporting…' : 'Export CSV' }}
+        </button>
+      </div>
+    }
   </header>
 
   <div class="filter-bar">

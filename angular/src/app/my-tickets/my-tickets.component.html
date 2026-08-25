@@ -4,6 +4,13 @@
       <h1 class="my-tickets-page__title">My Tickets</h1>
       <p class="my-tickets-page__subtitle">Tickets assigned to you</p>
     </div>
+    @if (!noUserId) {
+      <div class="my-tickets-page__header-actions">
+        <button type="button" class="btn btn--ghost" [disabled]="exporting" (click)="exportCsv()">
+          <i class="bi bi-download"></i> {{ exporting ? 'Exporting…' : 'Export CSV' }}
+        </button>
+      </div>
+    }
   </header>
 
   @if (noUserId) {

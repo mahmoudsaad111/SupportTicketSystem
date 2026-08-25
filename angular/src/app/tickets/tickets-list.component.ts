@@ -7,9 +7,11 @@ import { finalize } from 'rxjs';
 import { NgZone } from '@angular/core';
 import { TicketService } from '../shared/services/ticket.service';
 import { UserService } from '../shared/services/user.service';
+import { AgentNameResolverService } from '../shared/services/agent-name-resolver.service';
 import { IdentityUserDto } from '../shared/models/user.models';
 import { runInZone } from '../shared/utils/run-in-zone';
 import { getTicketActionError } from '../shared/utils/ticket-action-error';
+import { exportTicketsToCsv } from '../shared/utils/ticket-csv-export';
 import {
   TicketDto,
   TicketStatus,
@@ -76,6 +78,7 @@ export class TicketsListComponent implements OnInit {
   constructor(
     private ticketService: TicketService,
     private userService: UserService,
+    private agentNameResolver: AgentNameResolverService,
     private configState: ConfigStateService,
     private permissionService: PermissionService,
     private ngZone: NgZone,
@@ -182,6 +185,63 @@ export class TicketsListComponent implements OnInit {
 
   trackByTicketId(_index: number, ticket: TicketDto): string {
     return ticket.id;
+  }
+
+  // ---- CSV export ----
+  // Pulls the full filtered set in one call (not just the current page) --
+  // GetTicketListDto already supports a high maxResultCount, so no backend
+  // change is needed. 1000 is a pragmatic cap: fine for a demo/small
+  // dataset, but would silently truncate a much larger filtered result.
+  //
+  // Agent names are resolved via IdentityUserLookupService (through
+  // AgentNameResolverService), not the AbpIdentity.Users-gated UserService
+  // used elsewhere on this page for the Assign dropdown -- that permission
+  // is admin-only, so a plain Agent exporting this list would otherwise
+  // silently see "Unknown user" for every assigned agent.
+  exporting = false;
+
+  exportCsv(): void {
+    if (this.exporting) return;
+    this.exporting = true;
+
+    this.ticketService
+      .getList({
+        status: this.statusFilter === 'all' ? undefined : this.statusFilter,
+        sorting: `${SORT_FIELD} asc`,
+        maxResultCount: 1000,
+      })
+      .pipe(runInZone(this.ngZone))
+      .subscribe({
+        next: result => {
+          const rows =
+            this.priorityFilter === 'all'
+              ? (result.items ?? [])
+              : (result.items ?? []).filter(t => t.priority === this.priorityFilter);
+
+          this.agentNameResolver
+            .resolveNames(rows.map(t => t.assignedAgentId))
+            .pipe(
+              runInZone(this.ngZone),
+              finalize(() => {
+                this.exporting = false;
+                this.cdr.detectChanges();
+              }),
+            )
+            .subscribe({
+              next: agentNames => {
+                exportTicketsToCsv(`tickets-${new Date().toISOString().slice(0, 10)}.csv`, rows, agentNames);
+              },
+              error: () => {
+                this.actionErrorMessage = 'Export failed. Please try again.';
+              },
+            });
+        },
+        error: () => {
+          this.exporting = false;
+          this.actionErrorMessage = 'Export failed. Please try again.';
+          this.cdr.detectChanges();
+        },
+      });
   }
 
   userDisplayName(userId: string | null | undefined): string {

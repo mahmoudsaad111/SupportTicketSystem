@@ -6,9 +6,11 @@ import { ConfigStateService, PermissionService } from '@abp/ng.core';
 import { finalize } from 'rxjs';
 import { TicketService } from '../shared/services/ticket.service';
 import { UserService } from '../shared/services/user.service';
+import { AgentNameResolverService } from '../shared/services/agent-name-resolver.service';
 import { IdentityUserDto } from '../shared/models/user.models';
 import { runInZone } from '../shared/utils/run-in-zone';
 import { getTicketActionError } from '../shared/utils/ticket-action-error';
+import { exportTicketsToCsv } from '../shared/utils/ticket-csv-export';
 import {
   TicketDto,
   TicketStatus,
@@ -49,6 +51,7 @@ export class OverdueTicketsComponent implements OnInit {
   constructor(
     private ticketService: TicketService,
     private userService: UserService,
+    private agentNameResolver: AgentNameResolverService,
     private configState: ConfigStateService,
     private permissionService: PermissionService,
     private ngZone: NgZone,
@@ -141,6 +144,37 @@ export class OverdueTicketsComponent implements OnInit {
     return user.name || user.surname
       ? `${user.name ?? ''} ${user.surname ?? ''}`.trim()
       : user.userName;
+  }
+
+  // ---- CSV export ----
+  // The overdue list is already fully loaded client-side (no pagination),
+  // so export just resolves agent names for what's on screen -- no extra
+  // fetch needed. Uses IdentityUserLookupService (permission-light) rather
+  // than the AbpIdentity.Users-gated `users` list above, so non-admin
+  // Agents exporting this page still get real names, not "Unknown user".
+  exporting = false;
+
+  exportCsv(): void {
+    if (this.exporting || this.tickets.length === 0) return;
+    this.exporting = true;
+
+    this.agentNameResolver
+      .resolveNames(this.tickets.map(t => t.assignedAgentId))
+      .pipe(
+        runInZone(this.ngZone),
+        finalize(() => {
+          this.exporting = false;
+          this.cdr.detectChanges();
+        }),
+      )
+      .subscribe({
+        next: agentNames => {
+          exportTicketsToCsv(`overdue-tickets-${new Date().toISOString().slice(0, 10)}.csv`, this.tickets, agentNames);
+        },
+        error: () => {
+          this.actionErrorMessage = 'Export failed. Please try again.';
+        },
+      });
   }
 
   resolve(ticket: TicketDto): void {

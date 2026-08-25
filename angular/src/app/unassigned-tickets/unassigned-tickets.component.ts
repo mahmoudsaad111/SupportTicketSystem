@@ -6,9 +6,11 @@ import { ConfigStateService, PermissionService } from '@abp/ng.core';
 import { finalize } from 'rxjs';
 import { TicketService } from '../shared/services/ticket.service';
 import { UserService } from '../shared/services/user.service';
+import { AgentNameResolverService } from '../shared/services/agent-name-resolver.service';
 import { IdentityUserDto } from '../shared/models/user.models';
 import { runInZone } from '../shared/utils/run-in-zone';
 import { getTicketActionError } from '../shared/utils/ticket-action-error';
+import { exportTicketsToCsv } from '../shared/utils/ticket-csv-export';
 import {
   TicketDto,
   TicketStatus,
@@ -62,6 +64,7 @@ export class UnassignedTicketsComponent implements OnInit {
   constructor(
     private ticketService: TicketService,
     private userService: UserService,
+    private agentNameResolver: AgentNameResolverService,
     private configState: ConfigStateService,
     private permissionService: PermissionService,
     private ngZone: NgZone,
@@ -108,6 +111,39 @@ export class UnassignedTicketsComponent implements OnInit {
 
   onStatusFilterChange(): void {
     this.loadUnassigned();
+  }
+
+  // ---- CSV export ----
+  // allFetched already holds every unassigned candidate currently loaded
+  // (see FETCH_SIZE note above) so export uses that directly. Every row's
+  // agent is empty by definition here, but names are still resolved for
+  // consistency with the other export buttons and in case this list is
+  // later changed to include recently-claimed tickets too.
+  exporting = false;
+
+  exportCsv(): void {
+    if (this.exporting || this.unassignedTickets.length === 0) return;
+    this.exporting = true;
+
+    const rows = this.unassignedTickets;
+
+    this.agentNameResolver
+      .resolveNames(rows.map(t => t.assignedAgentId))
+      .pipe(
+        runInZone(this.ngZone),
+        finalize(() => {
+          this.exporting = false;
+          this.cdr.detectChanges();
+        }),
+      )
+      .subscribe({
+        next: agentNames => {
+          exportTicketsToCsv(`unassigned-tickets-${new Date().toISOString().slice(0, 10)}.csv`, rows, agentNames);
+        },
+        error: () => {
+          this.loadError = true;
+        },
+      });
   }
 
   priorityBadgeClass(priority: PriorityLevel): string {

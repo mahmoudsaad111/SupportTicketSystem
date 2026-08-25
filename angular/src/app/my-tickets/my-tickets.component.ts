@@ -6,7 +6,9 @@ import { ConfigStateService } from '@abp/ng.core';
 import { finalize } from 'rxjs';
 import { NgZone } from '@angular/core';
 import { TicketService } from '../shared/services/ticket.service';
+import { AgentNameResolverService } from '../shared/services/agent-name-resolver.service';
 import { runInZone } from '../shared/utils/run-in-zone';
+import { exportTicketsToCsv } from '../shared/utils/ticket-csv-export';
 import {
   TicketDto,
   TicketStatus,
@@ -46,6 +48,7 @@ export class MyTicketsComponent implements OnInit {
 
   constructor(
     private ticketService: TicketService,
+    private agentNameResolver: AgentNameResolverService,
     private configState: ConfigStateService,
     private ngZone: NgZone,
     private cdr: ChangeDetectorRef,
@@ -110,6 +113,57 @@ export class MyTicketsComponent implements OnInit {
     if (page < 1 || page > this.totalPages || page === this.currentPage) return;
     this.currentPage = page;
     this.loadTickets();
+  }
+
+  // ---- CSV export ----
+  // Pulls the full filtered set (all pages, capped at 1000) in one call,
+  // not just what's currently on screen -- consistent with the other
+  // ticket-list export buttons. Every row here is already assigned to the
+  // current user, so agent-name resolution mostly just confirms "you", but
+  // it's kept for consistency and to correctly label any edge case where a
+  // ticket shows here without loading its own agent's exact display name.
+  exporting = false;
+
+  exportCsv(): void {
+    if (this.exporting || !this.currentUserId) return;
+    this.exporting = true;
+
+    this.ticketService
+      .getList({
+        assignedAgentId: this.currentUserId,
+        status: this.statusFilter === 'all' ? undefined : this.statusFilter,
+        sorting: `${SORT_FIELD} asc`,
+        maxResultCount: 1000,
+      })
+      .pipe(runInZone(this.ngZone))
+      .subscribe({
+        next: result => {
+          const rows = result.items ?? [];
+
+          this.agentNameResolver
+            .resolveNames(rows.map(t => t.assignedAgentId))
+            .pipe(
+              runInZone(this.ngZone),
+              finalize(() => {
+                this.exporting = false;
+                this.cdr.detectChanges();
+              }),
+            )
+            .subscribe({
+              next: agentNames => {
+                exportTicketsToCsv(`my-tickets-${new Date().toISOString().slice(0, 10)}.csv`, rows, agentNames);
+              },
+              error: () => {
+                this.loadError = true;
+              },
+            });
+        },
+        error: () => {
+          this.exporting = false;
+          this.loadError = true;
+          this.cdr.detectChanges();
+        },
+      });
   }
 
   statusBadgeClass(status: TicketStatus): string {

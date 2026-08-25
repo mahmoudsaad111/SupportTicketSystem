@@ -22,6 +22,12 @@
     margin: 0.25rem 0 0;
     font-size: 0.9rem;
   }
+
+  &__header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
 }
 
 .filter-bar {
