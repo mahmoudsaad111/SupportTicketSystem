@@ -31,8 +31,8 @@ The goal here was to build something that actually behaves like a real support s
 
 | | |
 |---|---|
-| ![Screenshot 1](screenshots/Screenshot%202026-08-23%20164353.png) | ![Screenshot 2](screenshots/Screenshot%202026-08-25%20145107.png) |
-| ![Screenshot 3](screenshots/Screenshot%202026-08-25%20145124.png) | ![Screenshot 4](screenshots/Screenshot%202026-08-25%20145140.png) |
+| ![Screenshot 1](Screenshots/screenshot1.png) | ![Screenshot 2](Screenshots/screeenshot2.png) |
+| ![Screenshot 3](Screenshots/screenshot3.png) | ![Screenshot 4](Screenshots/screenshot4.png) |
 
 ## The architecture, briefly
 
